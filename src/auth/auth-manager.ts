@@ -1,0 +1,232 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { EndpointMap, AuthState, AuthStatus, RuntimeConfig, StoredCookie } from "../config/types.js";
+import { resolveConfiguredPath } from "../config/load.js";
+import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
+import { EncryptedJsonStore } from "./encrypted-store.js";
+import { getSetCookieHeaders, mergeSetCookies, cookieHeader } from "./cookie-jar.js";
+
+interface PrivyRefreshResponse {
+  token?: string;
+  privy_access_token?: string;
+  refresh_token?: string;
+  identity_token?: string;
+}
+
+function parseEnvironmentCookies(): StoredCookie[] {
+  const raw = process.env.FOMO_COOKIES_JSON;
+  if (!raw) return [];
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed)) throw new Error("FOMO_COOKIES_JSON must be a JSON array");
+  return parsed as StoredCookie[];
+}
+
+function environmentState(): AuthState | null {
+  const idToken = process.env.FOMO_ID_TOKEN?.trim();
+  const accessToken = process.env.FOMO_ACCESS_TOKEN?.trim();
+  const refreshToken = process.env.FOMO_REFRESH_TOKEN?.trim();
+  if (!idToken && !accessToken && !refreshToken && !process.env.FOMO_COOKIES_JSON) return null;
+  if (accessToken && !refreshToken) throw new Error("FOMO_ACCESS_TOKEN requires FOMO_REFRESH_TOKEN");
+  if (refreshToken && !accessToken) throw new Error("FOMO_REFRESH_TOKEN requires FOMO_ACCESS_TOKEN");
+  return {
+    version: 1,
+    source: "environment",
+    idToken,
+    accessToken,
+    refreshToken,
+    caId: process.env.FOMO_CA_ID,
+    cookies: parseEnvironmentCookies(),
+    updatedAt: new Date().toISOString(),
+    identityTokenExpiresAt: tokenExpiry(idToken),
+  };
+}
+
+function tokenExpiry(token: string | undefined): string | undefined {
+  if (!token) return undefined;
+  const parts = token.split(".");
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as { exp?: unknown };
+    return typeof payload.exp === "number" ? new Date(payload.exp * 1000).toISOString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeState(input: Partial<AuthState>, source: AuthState["source"] = "manual-import"): AuthState {
+  return {
+    version: 1,
+    source,
+    idToken: input.idToken,
+    accessToken: input.accessToken,
+    refreshToken: input.refreshToken,
+    caId: input.caId,
+    cookies: Array.isArray(input.cookies) ? input.cookies : [],
+    updatedAt: new Date().toISOString(),
+    identityTokenExpiresAt: input.identityTokenExpiresAt ?? tokenExpiry(input.idToken),
+  };
+}
+
+export class AuthManager {
+  private state: AuthState | null = null;
+  private initialized = false;
+  private persisted = false;
+  private readonly filePath: string;
+  private readonly store: EncryptedJsonStore<AuthState>;
+
+  constructor(private readonly runtime: RuntimeConfig) {
+    this.filePath = process.env.FOMO_MCP_AUTH_FILE
+      ? path.resolve(process.env.FOMO_MCP_AUTH_FILE)
+      : resolveConfiguredPath(runtime.auth.stateFile);
+    this.store = new EncryptedJsonStore<AuthState>(this.filePath, process.env[runtime.auth.masterKeyEnv]);
+  }
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    const env = this.runtime.auth.allowEnvironmentTokens ? environmentState() : null;
+    if (env) {
+      this.state = env;
+      this.persisted = false;
+      this.initialized = true;
+      return;
+    }
+    this.state = await this.store.read();
+    this.persisted = this.state?.source !== "environment";
+    this.initialized = true;
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) await this.initialize();
+  }
+
+  async status(): Promise<AuthStatus> {
+    await this.ensureInitialized();
+    return {
+      available: Boolean(this.state?.idToken),
+      source: this.state?.source ?? "none",
+      hasIdentityToken: Boolean(this.state?.idToken),
+      hasAccessToken: Boolean(this.state?.accessToken),
+      hasRefreshToken: Boolean(this.state?.refreshToken),
+      cookieCount: this.state?.cookies.length ?? 0,
+      updatedAt: this.state?.updatedAt,
+      identityTokenExpiresAt: this.state?.identityTokenExpiresAt,
+      reauthRequired: !this.state?.idToken || this.identityExpired(),
+    };
+  }
+
+  private identityExpired(): boolean {
+    if (!this.state?.identityTokenExpiresAt) return false;
+    return Date.parse(this.state.identityTokenExpiresAt) <= Date.now();
+  }
+
+  async identityToken(): Promise<string> {
+    await this.ensureInitialized();
+    if (!this.state?.idToken) throw new AuthRequiredError("An identity token is required for FOMO API access");
+    if (this.identityExpired()) throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
+    return this.state.idToken;
+  }
+
+  async accessToken(): Promise<string> {
+    await this.ensureInitialized();
+    if (!this.state?.accessToken) throw new AuthRequiredError("An access token is required for this auth operation");
+    return this.state.accessToken;
+  }
+
+  async refreshToken(): Promise<string> {
+    await this.ensureInitialized();
+    if (!this.state?.refreshToken) throw new AuthRequiredError("A refresh token is required for this auth operation");
+    return this.state.refreshToken;
+  }
+
+  async cookiesFor(url: string): Promise<string | undefined> {
+    await this.ensureInitialized();
+    return cookieHeader(this.state?.cookies ?? [], url);
+  }
+
+  async updateCookies(headers: Headers, requestUrl: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.state) return;
+    const setCookies = getSetCookieHeaders(headers);
+    if (setCookies.length === 0) return;
+    this.state.cookies = mergeSetCookies(this.state.cookies, setCookies, requestUrl);
+    this.state.updatedAt = new Date().toISOString();
+    await this.persistIfAllowed();
+  }
+
+  async importState(input: Partial<AuthState>, source: AuthState["source"] = "manual-import"): Promise<AuthStatus> {
+    const state = safeState(input, source);
+    if (!state.idToken && !state.accessToken && !state.refreshToken && state.cookies.length === 0) {
+      throw new Error("Auth import must contain at least one token or cookie");
+    }
+    this.state = state;
+    this.initialized = true;
+    this.persisted = true;
+    await this.store.write(state);
+    return this.status();
+  }
+
+  async refreshSession(): Promise<AuthStatus> {
+    await this.ensureInitialized();
+    if (!this.state?.accessToken || !this.state.refreshToken) {
+      throw new AuthRequiredError("Both access and refresh tokens are required to refresh the Privy session");
+    }
+    const endpoint = "https://auth.privy.io/api/v1/sessions";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.runtime.http.requestTimeoutMs);
+    try {
+      const headers: Record<string, string> = {
+        authorization: `Bearer ${this.state.accessToken}`,
+        "content-type": "application/json",
+        origin: this.runtime.http.origin,
+        referer: this.runtime.http.referer,
+        "privy-client": this.runtime.auth.privyClient,
+        "privy-app-id": this.runtime.auth.privyAppId,
+        "privy-client-id": this.runtime.auth.privyClientId,
+        "user-agent": this.runtime.http.userAgent,
+        ...(this.state.caId ? { "privy-ca-id": this.state.caId } : {}),
+      };
+      const cookies = await this.cookiesFor(endpoint);
+      if (cookies) headers.cookie = cookies;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ refresh_token: this.state.refreshToken }),
+        signal: controller.signal,
+      });
+      await this.updateCookies(response.headers, endpoint);
+      if (!response.ok) {
+        if (response.status === 401) throw new ReauthRequiredError("Privy refresh was rejected; interactive re-authentication is required");
+        throw new TransportError(`Privy refresh failed with HTTP ${response.status}`, { status: response.status });
+      }
+      const data = (await response.json()) as PrivyRefreshResponse;
+      if (!data.privy_access_token || !data.refresh_token) {
+        throw new ReauthRequiredError("Privy refresh did not return a complete rotated token pair");
+      }
+      this.state.accessToken = data.privy_access_token;
+      this.state.refreshToken = data.refresh_token;
+      if (data.token) {
+        this.state.idToken = data.token;
+        this.state.identityTokenExpiresAt = tokenExpiry(data.token);
+      }
+      this.state.updatedAt = new Date().toISOString();
+      await this.persistIfAllowed();
+      return this.status();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async persistIfAllowed(): Promise<void> {
+    if (!this.state || !this.persisted) return;
+    await this.store.write(this.state);
+  }
+
+  get authFilePath(): string {
+    return this.filePath;
+  }
+}
+
+export async function readAuthImport(filePath: string): Promise<Partial<AuthState>> {
+  const parsed = JSON.parse(await readFile(path.resolve(filePath), "utf8")) as Partial<AuthState>;
+  return parsed;
+}

@@ -1,0 +1,53 @@
+{
+  "appName": "fomo-mcp",
+  "environment": "development",
+  "apiBases": {
+    "fomo": "https://prod-api.fomo.family",
+    "mobula": "https://mobula-api.fomo.family",
+    "privy": "https://auth.privy.io"
+  },
+  "http": {
+    "requestTimeoutMs": 15000,
+    "maxResponseBytes": 10485760,
+    "maxRetries": 2,
+    "retryBaseDelayMs": 300,
+    "respectRetryAfter": true,
+    "origin": "https://fomo.family",
+    "referer": "https://fomo.family/",
+    "userAgent": "fomo-mcp/0.1.0"
+  },
+  "transport": {
+    "mode": "hybrid",
+    "browser": {
+      "headed": true,
+      "appMode": true,
+      "startMinimized": true,
+      "windowWidth": 1,
+      "windowHeight": 1,
+      "origin": "https://fomo.family"
+    }
+  },
+  "auth": {
+    "stateFile": "./data/auth-state.enc.json",
+    "masterKeyEnv": "FOMO_MCP_MASTER_KEY",
+    "allowEnvironmentTokens": true,
+    "persistEnvironmentTokens": false,
+    "privyAppId": "cm6h485o300n3zj9yl6vpedq7",
+    "privyClientId": "client-WY5gFSayQjxnQhG4rP6SnwPAyPZWZpNRhJ6b9rzMnYwqH",
+    "privyClient": "react-auth:3.34.0",
+    "browserLoginTimeoutMs": 600000,
+    "browserLoginHeaded": true
+  },
+  "mcp": {
+    "name": "fomo-mcp",
+    "version": "0.1.0",
+    "includeMutationTools": false,
+    "includeInternalEndpoints": false
+  },
+  "daemon": {
+    "healthHost": "127.0.0.1",
+    "healthPort": 8387,
+    "heartbeatIntervalMs": 30000,
+    "collectorEnabled": false
+  }
+}
