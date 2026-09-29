@@ -99,8 +99,13 @@ export class AuthManager {
     if (!this.initialized) await this.initialize();
   }
 
-  async status(): Promise<AuthStatus> {
+  private async reloadPersistedState(): Promise<void> {
     await this.ensureInitialized();
+    if (this.persisted) this.state = await this.store.read();
+  }
+
+  async status(): Promise<AuthStatus> {
+    await this.reloadPersistedState();
     return {
       available: Boolean(this.state?.idToken),
       source: this.state?.source ?? "none",
@@ -120,31 +125,31 @@ export class AuthManager {
   }
 
   async identityToken(): Promise<string> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     if (!this.state?.idToken) throw new AuthRequiredError("An identity token is required for FOMO API access");
     if (this.identityExpired()) throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
     return this.state.idToken;
   }
 
   async accessToken(): Promise<string> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     if (!this.state?.accessToken) throw new AuthRequiredError("An access token is required for this auth operation");
     return this.state.accessToken;
   }
 
   async refreshToken(): Promise<string> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     if (!this.state?.refreshToken) throw new AuthRequiredError("A refresh token is required for this auth operation");
     return this.state.refreshToken;
   }
 
   async cookiesFor(url: string): Promise<string | undefined> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     return cookieHeader(this.state?.cookies ?? [], url);
   }
 
   async updateCookies(headers: Headers, requestUrl: string): Promise<void> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     if (!this.state) return;
     const setCookies = getSetCookieHeaders(headers);
     if (setCookies.length === 0) return;
@@ -166,7 +171,7 @@ export class AuthManager {
   }
 
   async refreshSession(): Promise<AuthStatus> {
-    await this.ensureInitialized();
+    await this.reloadPersistedState();
     if (!this.state?.accessToken || !this.state.refreshToken) {
       throw new AuthRequiredError("Both access and refresh tokens are required to refresh the Privy session");
     }

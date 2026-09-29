@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import path from "node:path";
 
@@ -67,7 +67,14 @@ export class EncryptedJsonStore<T> {
       tag: cipher.getAuthTag().toString("base64url"),
       ciphertext: ciphertext.toString("base64url"),
     };
-    await writeFile(this.filePath, `${JSON.stringify(envelope, null, 2)}\n`, { mode: 0o600 });
-    await chmod(this.filePath, 0o600);
+    const temporaryPath = `${this.filePath}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`;
+    try {
+      await writeFile(temporaryPath, `${JSON.stringify(envelope, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+      await chmod(temporaryPath, 0o600);
+      await rename(temporaryPath, this.filePath);
+    } catch (error) {
+      await unlink(temporaryPath).catch(() => undefined);
+      throw error;
+    }
   }
 }

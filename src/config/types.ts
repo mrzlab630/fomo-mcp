@@ -98,6 +98,7 @@ export interface RuntimeConfig {
     privyClient: string;
     browserLoginTimeoutMs: number;
     browserLoginHeaded: boolean;
+    browserProfileDir: string;
   };
   mcp: {
     name: string;

@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type { RuntimeConfig, StoredCookie } from "../config/types.js";
@@ -60,16 +62,89 @@ function cookiesFromContext(cookies: Awaited<ReturnType<BrowserContext["cookies"
   }));
 }
 
+function browserProfilePath(runtime: RuntimeConfig): string {
+  const configured = process.env.FOMO_MCP_BROWSER_PROFILE_DIR?.trim() || runtime.auth.browserProfileDir?.trim();
+  const selected = configured || path.join(os.homedir(), ".local", "share", "fomo-mcp", "google-profile");
+  const expanded = selected.replace(/^~(?=\/|$)/, os.homedir());
+  return path.resolve(expanded);
+}
+
+async function ensurePrivateDirectory(directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  await chmod(directory, 0o700);
+}
+
+interface ProfileLock {
+  path: string;
+  handle: Awaited<ReturnType<typeof open>>;
+  heartbeat: NodeJS.Timeout;
+}
+
+async function acquireProfileLock(profile: string): Promise<ProfileLock> {
+  const lockPath = `${profile}.lock`;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      const writeHeartbeat = async () => {
+        const content = JSON.stringify({ pid: process.pid, updatedAt: Date.now() });
+        await handle.write(content, 0, "utf8");
+        await handle.truncate(Buffer.byteLength(content));
+      };
+      await writeHeartbeat();
+      const heartbeat = setInterval(() => {
+        void writeHeartbeat().catch(() => undefined);
+      }, 5000);
+      heartbeat.unref();
+      return { path: lockPath, handle, heartbeat };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      let lockIsStale = false;
+      try {
+        const owner = JSON.parse(await readFile(lockPath, "utf8")) as { updatedAt?: unknown };
+        lockIsStale = typeof owner.updatedAt === "number" && Date.now() - owner.updatedAt > 15000;
+      } catch {
+        // A partially written lock is left in place to avoid racing its owner.
+      }
+      if (!lockIsStale) {
+        throw new Error("FOMO authorization is already running in another process");
+      }
+      await unlink(lockPath).catch(() => undefined);
+    }
+  }
+  throw new Error("Could not acquire the FOMO authorization profile lock");
+}
+
+async function releaseProfileLock(lock: ProfileLock | undefined): Promise<void> {
+  if (!lock) return;
+  clearInterval(lock.heartbeat);
+  await lock.handle.close().catch(() => undefined);
+  await unlink(lock.path).catch(() => undefined);
+}
+
+function chromeFailure(stderr: string, code: number | null): Error {
+  const safe = stderr
+    .split(/\r?\n/)
+    .map((line) => line.replace(/https?:\/\/\S+/gi, "<url>").replace(/[A-Za-z0-9_-]{40,}/g, "<redacted>"))
+    .filter((line) => line.length > 0)
+    .slice(-8)
+    .map((line) => line.slice(0, 300))
+    .join(" | " );
+  const details = safe ? `; ${safe}` : "";
+  return new Error(`Ordinary Chrome exited before startup (code ${code ?? "unknown"}${details})`);
+}
+
 export class BrowserLoginManager {
   private readonly flows = new Map<string, BrowserLoginSnapshot>();
   private readonly browsers = new Map<string, Browser>();
   private readonly pages = new Map<string, Page>();
   private readonly chromeProcesses = new Map<string, ChildProcess>();
-  private readonly chromeProfiles = new Map<string, string>();
+  private readonly profileLocks = new Map<string, ProfileLock>();
 
   constructor(private readonly runtime: RuntimeConfig, private readonly auth: AuthManager) {}
 
   create(): BrowserLoginSnapshot {
+    const active = [...this.flows.values()].find((flow) => flow.status !== "captured" && flow.status !== "failed");
+    if (active) return active;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const snapshot: BrowserLoginSnapshot = { id, status: "starting", startedAt: now, updatedAt: now };
@@ -114,16 +189,27 @@ export class BrowserLoginManager {
   }
 
   private async launchOrdinaryChrome(id: string): Promise<Browser> {
-    const profile = await mkdtemp(path.join("/tmp", "fomo-mcp-auth-"));
-    const chrome = spawn("/opt/google/chrome/chrome", [
+    if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+      throw new Error("Interactive authorization requires a graphical session (DISPLAY or WAYLAND_DISPLAY is missing)");
+    }
+    const profile = browserProfilePath(this.runtime);
+    await ensurePrivateDirectory(profile);
+    const lock = await acquireProfileLock(profile);
+    this.profileLocks.set(id, lock);
+    const executablePath = this.runtime.transport.browser?.executablePath ?? "/opt/google/chrome/chrome";
+    if (!existsSync(executablePath)) {
+      await releaseProfileLock(lock);
+      this.profileLocks.delete(id);
+      throw new Error(`Chrome executable was not found at ${executablePath}`);
+    }
+    const chrome = spawn(executablePath, [
       `--user-data-dir=${profile}`,
       "--remote-debugging-port=0",
       "--no-first-run",
       "--no-default-browser-check",
-      "https://fomo.family/",
+      "about:blank",
     ], { stdio: ["ignore", "ignore", "pipe"] });
     this.chromeProcesses.set(id, chrome);
-    this.chromeProfiles.set(id, profile);
     return new Promise<Browser>((resolve, reject) => {
       let stderr = "";
       let settled = false;
@@ -151,7 +237,7 @@ export class BrowserLoginManager {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        reject(new Error(`Ordinary Chrome exited before startup (code ${code ?? "unknown"})`));
+        reject(chromeFailure(stderr, code));
       });
     });
   }
@@ -166,9 +252,6 @@ export class BrowserLoginManager {
       this.browsers.set(id, browser);
       const context = browser.contexts()[0] ?? await browser.newContext();
       const page = context.pages()[0] ?? await context.newPage();
-      if (!page.url() || page.url() === "about:blank") {
-        await page.goto("https://fomo.family/", { waitUntil: "domcontentloaded", timeout: 30000 });
-      }
       this.pages.set(id, page);
       const tokens: CapturedTokens = {};
       let oauthSeen = false;
@@ -196,6 +279,7 @@ export class BrowserLoginManager {
           // The browser may receive a non-JSON response during an OAuth redirect.
         }
       });
+      await page.goto("https://fomo.family/", { waitUntil: "domcontentloaded", timeout: 30000 });
       const deadline = Date.now() + this.runtime.auth.browserLoginTimeoutMs;
       while (Date.now() < deadline) {
         if (tokens.idToken && tokens.accessToken && tokens.refreshToken) {
@@ -214,13 +298,20 @@ export class BrowserLoginManager {
       if (browser) await browser.close().catch(() => undefined);
     } finally {
       const chrome = this.chromeProcesses.get(id);
-      if (chrome && !chrome.killed) chrome.kill();
-      const profile = this.chromeProfiles.get(id);
-      if (profile) await rm(profile, { recursive: true, force: true }).catch(() => undefined);
+      if (chrome && chrome.exitCode === null && !chrome.killed) {
+        chrome.kill();
+        await new Promise<void>((resolve) => {
+          if (chrome.exitCode !== null) return resolve();
+          const timer = setTimeout(resolve, 5000);
+          timer.unref();
+          chrome.once("exit", () => { clearTimeout(timer); resolve(); });
+        });
+      }
+      await releaseProfileLock(this.profileLocks.get(id));
       this.browsers.delete(id);
       this.pages.delete(id);
       this.chromeProcesses.delete(id);
-      this.chromeProfiles.delete(id);
+      this.profileLocks.delete(id);
     }
   }
 }

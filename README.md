@@ -68,7 +68,7 @@ npm run auth:refresh
 
 `auth:refresh` rotates the Privy access/refresh pair. It does not mint a new FOMO identity token; an expired identity token still requires interactive re-authentication and a new explicit import. Environment tokens are supported for ephemeral runs but are not persisted by default.
 
-The project does not automate login, scrape a browser profile, or extract credentials from DevTools. Cookie values are accepted only through an explicit import or response `Set-Cookie` handling and are filtered by domain/path before sending.
+The project does not automate Google credential entry, scrape the user's normal Chrome profile, or extract credentials from DevTools. It uses only the dedicated FOMO MCP profile described below. Cookie values are accepted only through an explicit import or response `Set-Cookie` handling and are filtered by domain/path before sending.
 
 ### Interactive local authorization
 
@@ -78,7 +78,9 @@ The PM2 daemon provides a user-driven local flow. The MCP tool `fomo_auth_start`
 http://127.0.0.1:8387/auth/form
 ```
 
-The page starts a separate visible system Chrome window. The user completes the normal FOMO login there. The flow observes only that browser session, captures the ID/access/refresh values emitted by the FOMO/Privy login and the session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and an optional expiry timestamp.
+The page starts a separate visible Chrome window with a dedicated persistent profile. On the first run, the user completes the normal FOMO/Google login there. Later runs reuse that profile's Google session, so the user normally only confirms the login instead of entering credentials again. The flow observes only that browser session, captures the ID/access/refresh values emitted by the FOMO/Privy login and the session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and an optional expiry timestamp.
+
+The dedicated profile defaults to `~/.local/share/fomo-mcp/google-profile`. Override it with `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` in `config/runtime.json`. Do not point it at the user's normal Chrome profile. The profile contains a Google browser session and must be protected as sensitive local data.
 
 When an identity token expires, a data tool returns `reauthRequired: true` and the same local link. The agent can send that link to the user and retry after `fomo_auth_status` reports a fresh session. The refresh endpoint can rotate access/refresh tokens, but it cannot mint a new identity token.
 

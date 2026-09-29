@@ -22,7 +22,9 @@ Privy access/refresh tokens are used for session operations and do not replace t
 
 ## Browser flow
 
-`POST /auth/session/start` launches ordinary headed Chrome with a temporary profile. It observes FOMO/Privy login, imports tokens and cookies, then deletes the profile. This is a local helper, not a stealth collector.
+`POST /auth/session/start` launches ordinary headed Chrome with a dedicated persistent profile at `~/.local/share/fomo-mcp/google-profile` by default. The first authorization may require a normal Google login; later authorizations reuse the Google session and usually require only a confirmation click. The profile is separate from the user's normal Chrome profile, protected with mode `0700`, and never copied or scraped. The flow imports tokens and cookies into the encrypted auth store, then closes Chrome while retaining the profile for the next authorization.
+
+Set `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` to choose another dedicated profile path. Only one authorization flow may use the profile at a time. If the profile is deleted, its Google session expires, or Google requires an additional check, the next authorization falls back to the normal login flow.
 
 ## Errors and reauthorization
 

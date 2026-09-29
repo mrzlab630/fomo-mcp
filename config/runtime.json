@@ -36,7 +36,8 @@
     "privyClientId": "client-WY5gFSayQjxnQhG4rP6SnwPAyPZWZpNRhJ6b9rzMnYwqH",
     "privyClient": "react-auth:3.34.0",
     "browserLoginTimeoutMs": 600000,
-    "browserLoginHeaded": true
+    "browserLoginHeaded": true,
+    "browserProfileDir": "~/.local/share/fomo-mcp/google-profile"
   },
   "mcp": {
     "name": "fomo-mcp",
