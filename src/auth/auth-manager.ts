@@ -168,8 +168,8 @@ export class AuthManager {
     return this.state.refreshToken;
   }
 
-  async ensureSession(auth: AuthMode): Promise<void> {
-    if (auth === "none") return;
+  async ensureSession(auth: AuthMode): Promise<string | undefined> {
+    if (auth === "none") return undefined;
     await this.reloadPersistedState();
 
     const needsIdentity = auth === "identity";
@@ -179,18 +179,21 @@ export class AuthManager {
     if (refreshNeeded && refreshable) await this.refreshSingleFlight();
     await this.reloadPersistedState();
 
-    if (needsIdentity) {
-      if (!this.state?.idToken) throw new AuthRequiredError("An identity token is required for FOMO API access");
-      if (this.identityExpired()) {
-        throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
-      }
+    const token = needsIdentity ? this.state?.idToken : this.state?.accessToken;
+    if (!token) {
+      throw new AuthRequiredError(
+        needsIdentity
+          ? "An identity token is required for FOMO API access"
+          : "An access token is required for this auth operation",
+      );
     }
-    if (needsAccess) {
-      if (!this.state?.accessToken) throw new AuthRequiredError("An access token is required for this auth operation");
-      if (this.accessExpired()) {
-        throw new ReauthRequiredError("Access token is expired; interactive re-authentication is required");
-      }
+    if (needsIdentity && this.identityExpired()) {
+      throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
     }
+    if (needsAccess && this.accessExpired()) {
+      throw new ReauthRequiredError("Access token is expired; interactive re-authentication is required");
+    }
+    return token;
   }
 
   async cookiesFor(url: string): Promise<string | undefined> {

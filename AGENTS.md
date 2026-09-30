@@ -9,6 +9,7 @@ This file is the working contract for an agent continuing this project.
 2. `config/runtime.json` contains changeable launch, transport, auth, and daemon settings.
 3. `src/` is the implementation. Do not add a route or parameter only to README.
 4. `README.md`, `docs/API.md`, and `docs/AUTH.md` explain the contract and must be updated with catalog or auth flow changes.
+5. `docs/AGENT_WORKFLOW.md` is the concise MCP-consumer sequence for normal requests and reauthorization.
 
 ## Security boundaries
 

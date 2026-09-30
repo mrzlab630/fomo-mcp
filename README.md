@@ -23,6 +23,7 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 ## Agent documentation
 
 - [AI agent rules](AGENTS.md): sources of truth, read-only boundaries, auth gates, proof, and Git rules.
+- [AI agent workflow](docs/AGENT_WORKFLOW.md): shortest normal path, reauthorization sequence, tool selection, and failure handling.
 - [API catalog](docs/API.md): every MCP tool, upstream route, parameter shape, disabled record, and local daemon route.
 - [Authentication](docs/AUTH.md): token model, Google/Privy flows, reauthorization, storage, and proof commands.
 
@@ -66,7 +67,7 @@ npm run auth:status
 npm run auth:refresh
 ```
 
-`auth:refresh` rotates the Privy access/refresh pair. It does not mint a new FOMO identity token; an expired identity token still requires interactive re-authentication and a new explicit import. Environment tokens are supported for ephemeral runs but are not persisted by default.
+`auth:refresh` rotates the Privy access/refresh pair and uses a returned identity token when Privy supplies one. If no fresh identity token is returned, an expired identity token still requires interactive re-authentication and a new explicit import. Environment tokens are supported for ephemeral runs but are not persisted by default.
 
 The project does not automate Google credential entry, scrape the user's normal Chrome profile, or extract credentials from DevTools. It uses only the dedicated FOMO MCP profile described below. Cookie values are accepted only through an explicit import or response `Set-Cookie` handling and are filtered by domain/path before sending.
 

@@ -56,7 +56,7 @@ export class FetchTransport implements Transport {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.runtime.http.requestTimeoutMs);
       try {
-        await this.auth.ensureSession(request.auth);
+        const token = await this.auth.ensureSession(request.auth);
         const headers: Record<string, string> = {
           accept: "application/json",
           origin: this.runtime.http.origin,
@@ -65,8 +65,7 @@ export class FetchTransport implements Transport {
           "x-request-id": requestId,
         };
         if (request.body !== undefined) headers["content-type"] = "application/json";
-        if (request.auth === "identity") headers.authorization = `Bearer ${await this.auth.identityToken()}`;
-        if (request.auth === "access") headers.authorization = `Bearer ${await this.auth.accessToken()}`;
+        if (token) headers.authorization = `Bearer ${token}`;
         const cookies = await this.auth.cookiesFor(request.url);
         if (cookies) headers.cookie = cookies;
         const response = await fetch(request.url, {

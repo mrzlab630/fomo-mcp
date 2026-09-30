@@ -118,10 +118,7 @@ export class BrowserTransport implements Transport {
     try {
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-        await this.auth.ensureSession(request.auth);
-        const token = request.auth === "identity"
-          ? await this.auth.identityToken()
-          : request.auth === "access" ? await this.auth.accessToken() : undefined;
+        const token = await this.auth.ensureSession(request.auth);
         const headers: Record<string, string> = {
           accept: "application/json",
           ...(request.body === undefined ? {} : { "content-type": "application/json" }),

@@ -2,6 +2,11 @@
 
 The complete structured contract is in `config/endpoints.json`. `exposed` means an available MCP tool; `internal` means a catalog record kept for upstream context but not registered. All listed routes require `identity` unless stated otherwise.
 
+For the shortest agent sequence, read [AI agent workflow](AGENT_WORKFLOW.md).
+Data tools return `{ data, meta }`; authentication recovery returns a local
+`authUrl`, a `nextAction`, and a bounded polling contract through the two auth
+tools.
+
 Base URLs: `fomo=https://prod-api.fomo.family`, `mobula=https://mobula-api.fomo.family`, `privy=https://auth.privy.io`.
 
 ## Users and portfolio
