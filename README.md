@@ -48,14 +48,17 @@ npm ci
 npm run build
 npm run endpoints:discover
 npm run endpoints:discover -- --baseline latest
+npm run endpoints:check
 ```
 
-Discovery reads public production HTML and JavaScript assets without starting a browser or requiring authentication. It writes JSON and Markdown reports to the configured `discovery.outputDir` (default `reports/`), with new route references, missing catalog references, evidence URLs/hashes, and changes since the optional baseline. Download limits and concurrency are in `config/runtime.json`. Missing references do not prove removal; frontend assets are evidence, not an official API specification.
+Discovery reads public production HTML and JavaScript assets without starting a browser or requiring authentication. The normal command stores one machine-readable snapshot at ignored `data/endpoint-discovery.json`; it does not create a reports directory. Pass `--output-dir reports` only for an explicit test/export run to write JSON and Markdown reports with new route references, missing catalog references, evidence URLs/hashes, and changes since the optional baseline. Download limits and concurrency are in `config/runtime.json`. Missing references do not prove removal; frontend assets are evidence, not an official API specification.
+
+Manual agent requests are supported in any language. A request to check endpoint changes maps to `npm run endpoints:check`, which compares with the latest saved snapshot, rejects `--apply`, and never edits the catalog. A request to refresh endpoints starts with that check, continues through source review and catalog edits, and uses `npm run endpoints:refresh` to apply reviewed records staged in `discoveryCandidates`. The refresh command itself does not infer or rewrite contracts. Both aliases work when the snapshot or its parent directory is absent. Use `npm run endpoints:refresh -- --report-only` for a non-mutating refresh, pass an explicit `--baseline <snapshot.json>`, or pass `--output-dir reports` only for a disposable test/export report.
 
 An agent can run this command periodically as a separate maintenance task using [the endpoint maintenance procedure](docs/AGENT_WORKFLOW.md#endpoint-maintenance-run). `--baseline latest` compares with the last saved snapshot. Review unknown routes and changed evidence, then update existing contracts in `config/endpoints.json`. Approved new read-only records may be staged in that same file's optional top-level `discoveryCandidates` array, which does not register MCP tools. Promote staged records with current route evidence and regenerate documentation:
 
 ```bash
-npm run endpoints:discover -- --apply
+npm run endpoints:refresh
 npm run docs:api
 npm run build
 npm run test:endpoints

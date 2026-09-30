@@ -1,34 +1,41 @@
-import { chmod, mkdir, readdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEndpointMap, loadRuntimeConfig, resolveConfiguredPath, resolveEndpointMapPath } from "./config/load.js";
 import { AuthManager, readAuthImport } from "./auth/auth-manager.js";
 import { generateMasterKey } from "./auth/encrypted-store.js";
-import { applyDiscoveryCandidates, catalogDigest, discoverEndpointMap, readDiscoveryReport, saveEndpointMap, writeDiscoveryReport } from "./endpoint-discovery.js";
+import { applyDiscoveryCandidates, catalogDigest, discoverEndpointMap, readDiscoveryReport, saveEndpointMap, writeDiscoveryReport, writeDiscoverySnapshot } from "./endpoint-discovery.js";
 
 const command = process.argv[2];
 const runtime = await loadRuntimeConfig();
 
-if (command === "endpoints:discover") {
-  let apply = false;
+if (command === "endpoints:discover" || command === "endpoints:check" || command === "endpoints:refresh") {
+  let apply = command === "endpoints:refresh";
   let baselinePath: string | undefined;
+  let outputDir = runtime.discovery?.outputDir;
   const flags = process.argv.slice(3);
   for (let index = 0; index < flags.length; index += 1) {
     const flag = flags[index];
-    if (flag === "--apply") apply = true;
+    if (flag === "--apply") {
+      if (command === "endpoints:check") throw new Error("endpoints:check is always report-only; use endpoints:refresh to apply reviewed candidates");
+      if (flags.includes("--report-only")) throw new Error("--apply and --report-only cannot be combined");
+      apply = true;
+    } else if (flag === "--report-only") apply = false;
     else if (flag === "--baseline" && flags[index + 1] && !flags[index + 1]!.startsWith("--")) baselinePath = flags[++index];
-    else throw new Error("Usage: endpoints:discover [--baseline <report.json|latest>] [--apply]");
+    else if (flag === "--output-dir" && flags[index + 1] && !flags[index + 1]!.startsWith("--")) outputDir = flags[++index];
+    else throw new Error("Usage: endpoints:(discover|check|refresh) [--baseline <report.json|latest>] [--apply|--report-only] [--output-dir <test-report-dir>]");
   }
   const endpointMap = await loadEndpointMap();
-  const outputDir = runtime.discovery?.outputDir ?? "reports";
-  const resolvedOutputDir = resolveConfiguredPath(outputDir);
-  if (baselinePath === "latest") {
-    const reports = (await readdir(resolvedOutputDir, { withFileTypes: true })).filter((item) => item.isFile() && /^fomo-endpoint-discovery-.*\.json$/.test(item.name)).map((item) => item.name).sort();
-    if (reports.length === 0) throw new Error(`No discovery baseline exists in ${resolvedOutputDir}; run endpoints:discover once without --baseline`);
-    baselinePath = path.join(resolvedOutputDir, reports.at(-1)!);
-  }
-  const baseline = baselinePath ? await readDiscoveryReport(path.resolve(baselinePath)) : undefined;
+  const snapshotPath = resolveConfiguredPath(runtime.discovery?.snapshotFile ?? "data/endpoint-discovery.json");
+  if (snapshotPath === resolveEndpointMapPath()) throw new Error("Discovery snapshot must not overwrite the endpoint catalog");
+  const automaticBaseline = !baselinePath && command !== "endpoints:discover";
+  if (automaticBaseline) baselinePath = "latest";
+  if (baselinePath === "latest") baselinePath = snapshotPath;
+  const baseline = baselinePath ? await readDiscoveryReport(path.resolve(baselinePath)).catch((error: NodeJS.ErrnoException) => {
+    if (automaticBaseline && error.code === "ENOENT") return undefined;
+    throw error;
+  }) : undefined;
   const report = await discoverEndpointMap(runtime, endpointMap, baseline);
-  const paths = await writeDiscoveryReport(report, resolvedOutputDir);
+  const paths = outputDir ? await writeDiscoveryReport(report, resolveConfiguredPath(outputDir)) : null;
   let applied = false;
   if (apply) {
     const currentMap = await loadEndpointMap();
@@ -37,8 +44,11 @@ if (command === "endpoints:discover") {
     await saveEndpointMap(updated, resolveEndpointMapPath());
     applied = true;
   }
+  await writeDiscoverySnapshot(report, snapshotPath);
   console.log(JSON.stringify({
     status: "complete",
+    mode: command === "endpoints:discover" ? "discovery" : command === "endpoints:check" ? "check" : "refresh",
+    baseline: baseline ? path.resolve(baselinePath!) : null,
     applyRequested: apply,
     applied,
     candidates: report.candidates.map((item) => item.endpoint.id),
@@ -46,6 +56,7 @@ if (command === "endpoints:discover") {
     unmappedRoutes: report.unmappedRoutes.length,
     catalogOnly: report.catalogOnly.length,
     changes: report.changes,
+    snapshot: snapshotPath,
     report: paths,
   }, null, 2));
   process.exit(0);
@@ -86,4 +97,4 @@ if (command === "auth:init-example") {
   process.exit(0);
 }
 
-throw new Error("Unknown command. Use endpoints:discover [--baseline <report.json|latest>] [--apply], auth:keygen, auth:status, auth:import, auth:refresh, or auth:init-example");
+throw new Error("Unknown command. Use endpoints:discover, endpoints:check, or endpoints:refresh [--baseline <report.json|latest>] [--apply|--report-only] [--output-dir <test-report-dir>], auth:keygen, auth:status, auth:import, auth:refresh, or auth:init-example");

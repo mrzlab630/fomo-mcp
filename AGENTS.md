@@ -44,6 +44,34 @@ curl --noproxy '*' -sS http://127.0.0.1:8387/config/status
 
 Live changes additionally require an authorized read-only endpoint and recorded HTTP status/requestId.
 
+## Manual endpoint maintenance
+
+Map explicit agent requests to the bounded CLI paths:
+
+- "Check endpoint changes" -> `npm run endpoints:check`; compares with the
+  newest ignored discovery snapshot and never edits the catalog.
+- "Actualize/refresh endpoints" -> `npm run endpoints:refresh`; applies only
+  complete reviewed records in `config/endpoints.json` under
+  `discoveryCandidates`. First run `endpoints:check`, review current source
+  evidence, update existing contracts and stage new read-only records following
+  `docs/AGENT_WORKFLOW.md#endpoint-maintenance-run`. The refresh command itself
+  does not research or rewrite existing contracts.
+- "Discover without changes" -> `npm run endpoints:discover -- --report-only`.
+
+Interpret equivalent requests in any language; exact wording is not required.
+`check` and `refresh` use `data/endpoint-discovery.json` by default, or create
+the first snapshot if none exists. `discover` compares only when `--baseline` is
+supplied. All accept `--baseline <snapshot.json>` for an explicit baseline and
+`--output-dir <test-report-dir>` for an optional disposable export. For
+check-only requests, return the report and findings without editing catalogs or
+docs. The production daemon does not depend on the snapshot or any reports
+directory. Read `unmappedRoutes`, `catalogOnly`, and `changes` before editing
+contracts. Discovery evidence does not prove that a route is authorized,
+read-only, current, or removed. After a refresh, regenerate `docs/API.md`, run
+the build and endpoint tests, inspect the diff, restart processes that load the
+catalog at startup, and record live status/request ids only after authorized
+read-only probes succeed.
+
 ## Git
 
 - One logical change per Conventional Commit.

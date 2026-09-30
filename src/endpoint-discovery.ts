@@ -163,7 +163,7 @@ function validateCandidate(endpoint: EndpointConfig): void {
 }
 
 export async function discoverEndpointMap(runtime: RuntimeConfig, endpointMap: EndpointMap, baseline?: EndpointDiscoveryReport): Promise<EndpointDiscoveryReport> {
-  const settings = runtime.discovery ?? { sourceUrl: "https://fomo.family/", outputDir: "reports", maxAssets: 400, maxAssetBytes: 5 * 1024 * 1024, maxTotalBytes: 20 * 1024 * 1024, concurrency: 6 };
+  const settings = runtime.discovery ?? { sourceUrl: "https://fomo.family/", maxAssets: 400, maxAssetBytes: 5 * 1024 * 1024, maxTotalBytes: 20 * 1024 * 1024, concurrency: 6 };
   for (const name of ["maxAssets", "maxAssetBytes", "maxTotalBytes", "concurrency"] as const) {
     if (!Number.isSafeInteger(settings[name]) || settings[name] < 1) throw new Error(`Invalid discovery setting: ${name}`);
   }
@@ -256,6 +256,17 @@ export function applyDiscoveryCandidates(endpointMap: EndpointMap, report: Endpo
     endpoints: [...endpointMap.endpoints, ...additions],
     ...(endpointMap.discoveryCandidates ? { discoveryCandidates: endpointMap.discoveryCandidates.filter((endpoint) => !additions.some((item) => item.id === endpoint.id)) } : {}),
   };
+}
+
+export async function writeDiscoverySnapshot(report: EndpointDiscoveryReport, filePath: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const temporary = `${filePath}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    await rename(temporary, filePath);
+  } finally {
+    await rm(temporary, { force: true });
+  }
 }
 
 export async function writeDiscoveryReport(report: EndpointDiscoveryReport, outputDir: string): Promise<{ jsonPath: string; markdownPath: string }> {

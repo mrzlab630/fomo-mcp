@@ -56,7 +56,7 @@
   },
   "discovery": {
     "sourceUrl": "https://fomo.family/",
-    "outputDir": "reports",
+    "snapshotFile": "data/endpoint-discovery.json",
     "maxAssets": 400,
     "maxAssetBytes": 5242880,
     "maxTotalBytes": 20971520,

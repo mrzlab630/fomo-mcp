@@ -71,7 +71,8 @@ export interface EndpointMap {
 
 export interface EndpointDiscoveryConfig {
   sourceUrl: string;
-  outputDir: string;
+  snapshotFile?: string;
+  outputDir?: string;
   maxAssets: number;
   maxAssetBytes: number;
   maxTotalBytes: number;

@@ -4,7 +4,7 @@
     "repository": "https://github.com/ColinEdw/fomo-mcp",
     "commit": "e97d14a194a65ec74cc420ba2af3a6956631e48f",
     "status": "reverse-engineered reference; refreshed from production frontend; verify before live use",
-    "discoveredAt": "2026-09-30T13:05:59.279Z",
+    "discoveredAt": "2026-09-30T13:37:49.680Z",
     "discoveryUrl": "https://fomo.family/",
     "discoveryManifest": "86d0b4f8"
   },

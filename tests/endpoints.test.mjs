@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import os from "node:os";
@@ -99,10 +101,45 @@ test("discovery compares evidence and only applies reviewed read-only candidates
   const mutationMap = { ...pending, discoveryCandidates: [{ ...trending, sideEffect: "mutation" }] };
   await assert.rejects(discoverEndpointMap(settings, mutationMap), /side effects/);
   const catalogPath = path.join(directory, "catalog.json");
-  const { writeFile } = await import("node:fs/promises");
   await writeFile(catalogPath, JSON.stringify(pending));
   await saveEndpointMap(applied, catalogPath);
   assert.deepEqual(JSON.parse(await readFile(catalogPath, "utf8")), applied);
+
+  const runtimePath = path.join(directory, "runtime.json");
+  const snapshotPath = path.join(directory, "state", "endpoint-discovery.json");
+  await writeFile(runtimePath, JSON.stringify({ ...settings, discovery: { ...settings.discovery, outputDir: undefined, snapshotFile: snapshotPath } }));
+  await writeFile(catalogPath, before);
+  const runCli = (command, ...flags) => promisify(execFile)(process.execPath, [new URL("../dist/cli.js", import.meta.url).pathname, command, ...flags], {
+    cwd: directory,
+    env: { ...process.env, FOMO_MCP_RUNTIME_CONFIG: runtimePath, FOMO_MCP_ENDPOINTS_CONFIG: catalogPath },
+    timeout: 15000,
+  });
+  const first = JSON.parse((await runCli("endpoints:check")).stdout);
+  assert.equal(first.mode, "check");
+  assert.equal(first.baseline, null);
+  assert.equal(first.applied, false);
+  assert.equal(first.report, null);
+  assert.equal(first.snapshot, snapshotPath);
+  assert.equal(await readFile(catalogPath, "utf8"), before);
+  await assert.rejects(readFile(path.join(directory, "reports")), { code: "ENOENT" });
+  await readDiscoveryReport(snapshotPath);
+  const repeat = JSON.parse((await runCli("endpoints:check")).stdout);
+  assert.equal(repeat.baseline, snapshotPath);
+  assert.deepEqual(repeat.changes.addedRoutes, []);
+  await assert.rejects(runCli("endpoints:check", "--apply"), (error) => error.stderr.includes("always report-only"));
+  await assert.rejects(runCli("endpoints:refresh", "--apply", "--report-only"), (error) => error.stderr.includes("cannot be combined"));
+  assert.equal(await readFile(catalogPath, "utf8"), before);
+  const preview = JSON.parse((await runCli("endpoints:refresh", "--report-only")).stdout);
+  assert.equal(preview.applied, false);
+  assert.equal(await readFile(catalogPath, "utf8"), before);
+  const exportDir = path.join(directory, "test-reports");
+  const exported = JSON.parse((await runCli("endpoints:check", "--output-dir", exportDir)).stdout);
+  await readDiscoveryReport(exported.report.jsonPath);
+  assert.match(await readFile(exported.report.markdownPath, "utf8"), /FOMO endpoint discovery/);
+  const refreshed = JSON.parse((await runCli("endpoints:refresh")).stdout);
+  assert.equal(refreshed.mode, "refresh");
+  assert.equal(refreshed.applied, true);
+  assert.equal(JSON.parse(await readFile(catalogPath, "utf8")).endpoints.length, catalog.endpoints.length);
   await assert.rejects(discoverEndpointMap({ ...settings, discovery: { ...settings.discovery, maxAssetBytes: 1 } }, pending), /budget exceeded/);
   await assert.rejects(discoverEndpointMap({ ...settings, discovery: { ...settings.discovery, maxTotalBytes: 1 } }, pending), /budget exceeded/);
   await assert.rejects(discoverEndpointMap({ ...settings, discovery: { ...settings.discovery, maxAssets: 0 } }, pending), /Invalid discovery setting/);

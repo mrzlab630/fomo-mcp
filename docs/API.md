@@ -7,7 +7,7 @@
 - Exposed read-only records: **56**
 - Disabled/internal references: **5**
 - Source status: reverse-engineered reference; refreshed from production frontend; verify before live use
-- Production evidence: https://fomo.family/; manifest `86d0b4f8`; collected 2026-09-30T13:05:59.279Z.
+- Production evidence: https://fomo.family/; manifest `86d0b4f8`; collected 2026-09-30T13:37:49.680Z.
 
 ## Contract and usage
 
@@ -1413,11 +1413,11 @@ These routes are local control-plane routes on `127.0.0.1:8387`; they are not up
 
 ## Endpoint discovery and refresh
 
-Run `npm run endpoints:discover` to fetch the current public FOMO HTML/manifest/JavaScript graph and write JSON plus Markdown reports under `reports/`. The default run never edits the catalog or starts a browser. It uses the installed TypeScript parser without executing application JavaScript, so maintenance requires a full development install (`npm ci`), not an install that omits development dependencies.
+Run `npm run endpoints:discover` to fetch the current public FOMO HTML/manifest/JavaScript graph and store one machine-readable snapshot at ignored `data/endpoint-discovery.json`. It does not create a reports directory unless `--output-dir reports` is supplied for a disposable test/export run. The default run never edits the catalog or starts a browser. Manual aliases are available: `npm run endpoints:check` compares with the snapshot and stays report-only; `npm run endpoints:refresh` compares and applies only reviewed `discoveryCandidates`; add `--report-only` to keep refresh non-mutating. Both aliases create an initial snapshot when none exists. The parser uses the installed TypeScript dependency without executing application JavaScript, so maintenance requires a full development install (`npm ci`), not an install that omits development dependencies.
 
-Use `npm run endpoints:discover -- --baseline latest` to compare against the newest saved version 2 snapshot in the configured report directory, or pass an explicit JSON report path. Reports include added/removed route references, changed SHA-256 evidence, unknown routes, catalog records not observed, and current asset URLs. A changed asset is a prompt to review its contract; no automatic parameter inference is performed.
+Use `npm run endpoints:discover -- --baseline latest` to compare against the saved snapshot, or pass an explicit snapshot JSON path. An optional `--output-dir <test-report-dir>` writes a Markdown/JSON export for review. Snapshots and exports include added/removed route references, changed SHA-256 evidence, unknown routes, catalog records not observed, and current asset URLs. A changed asset is a prompt to review its contract; no automatic parameter inference is performed.
 
-After review, put approved complete endpoint records in the optional top-level `discoveryCandidates` array of `config/endpoints.json`. Run `npm run endpoints:discover -- --apply` to promote only those records with current route evidence. It rejects side effects, internal records, conflicts, and catalog edits made during the network run; writes atomically; increments the version only for additions; and updates discovery provenance. Existing contracts are edited directly in `endpoints`, and unseen records are never automatically removed or enabled. Run a single apply process at a time.
+After review, put approved complete endpoint records in the optional top-level `discoveryCandidates` array of `config/endpoints.json`. Run `npm run endpoints:refresh` (or `npm run endpoints:discover -- --apply`) to promote only those records with current route evidence. It rejects side effects, internal records, conflicts, and catalog edits made during the network run; writes atomically; increments the version only for additions; and updates discovery provenance. Existing contracts are edited directly in `endpoints`, and unseen records are never automatically removed or enabled. Run a single apply process at a time.
 
 After any catalog edit/apply, run `npm run docs:api` and `npm run build`, review the diff, and perform an authorized read-only probe when authentication is ready. Restart affected MCP hosts/daemon to load new catalog schemas; processes load the catalog at startup. The periodic agent procedure is in [AI agent workflow](AGENT_WORKFLOW.md#endpoint-maintenance-run).
 
