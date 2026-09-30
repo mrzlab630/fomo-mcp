@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/
 logs/
+reports/
 .env
 .env.*
 !.env.example
