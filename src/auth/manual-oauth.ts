@@ -76,8 +76,8 @@ export class ManualOAuthManager {
     const pending = this.flows.get(id);
     if (!pending) throw new Error("OAuth flow is no longer active");
     const callback = new URL(rawUrl);
-    if (callback.protocol !== "https:" || callback.hostname !== "fomo.family" || callback.pathname !== "/favicon.ico") {
-      throw new Error("Redirect URL must point to https://fomo.family/favicon.ico");
+    if (callback.protocol !== "https:" || callback.hostname !== "fomo.family" || !["/token", "/favicon.ico"].includes(callback.pathname)) {
+      throw new Error("Redirect URL must point to https://fomo.family/favicon.ico or https://fomo.family/token");
     }
     const code = callback.searchParams.get("privy_oauth_code");
     const returnedState = callback.searchParams.get("privy_oauth_state");
@@ -99,7 +99,10 @@ export class ManualOAuthManager {
       });
       await this.auth.updateCookies(response.headers, endpoint);
       const data = await response.json() as Record<string, unknown>;
-      if (!response.ok) throw new Error(`Privy OAuth authenticate failed with HTTP ${response.status}`);
+      if (!response.ok) {
+        const errorCode = typeof data.error_code === "string" ? data.error_code : undefined;
+        throw new Error(`Privy OAuth authenticate failed with HTTP ${response.status}${errorCode ? ` (${errorCode})` : ""}`);
+      }
       const idToken = typeof data.token === "string" && data.token.length > 0 ? data.token : undefined;
       const accessToken = ["privy_access_token", "access_token", "accessToken", "token"]
         .map((key) => data[key]).find((value): value is string => typeof value === "string" && value.length > 0);

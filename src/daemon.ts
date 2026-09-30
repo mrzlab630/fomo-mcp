@@ -54,12 +54,12 @@ const server = createServer(async (request, response) => {
 <button id="start">Start authorization</button><pre id="status">Idle</pre>
 <hr><button id="manualStart">Start Google link flow</button>
 <div id="manualOAuth" hidden>
-<p>Open the link in your normal browser. After login, copy the final <code>https://fomo.family/...</code> address and paste it below. The redirect is processed locally.</p>
+<p>Open the link in your normal browser. After login, copy the complete callback address (usually <code>https://fomo.family/favicon.ico?...privy_oauth_code=...</code>) and paste it below. The redirect is processed locally.</p>
 <a id="manualLink" target="_blank" rel="noreferrer"></a>
 <form id="manualForm"><input id="manualRedirect" required size="70" placeholder="https://fomo.family/?privy_oauth_code=..."><button>Complete authorization</button></form>
 </div>
 <div id="manual" hidden>
-<p>If Google opened in the regular browser, copy the complete address after login and paste it here. The address is processed only by the local daemon.</p>
+<p>If Google opened in the regular browser, copy the complete callback address after login and paste it here. The address is processed only by the local daemon.</p>
 <button id="google" type="button" hidden>Open Google authorization in auth window</button>
 <form id="redirectForm"><input id="redirect" required size="70" placeholder="https://fomo.family/?privy_oauth_code=..."><button>Submit redirect</button></form>
 </div>

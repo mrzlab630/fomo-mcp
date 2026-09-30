@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { EndpointMap, AuthState, AuthStatus, RuntimeConfig, StoredCookie } from "../config/types.js";
+import type { AuthMode, AuthState, AuthStatus, RuntimeConfig, StoredCookie } from "../config/types.js";
 import { resolveConfiguredPath } from "../config/load.js";
 import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import { EncryptedJsonStore } from "./encrypted-store.js";
@@ -37,6 +37,8 @@ function environmentState(): AuthState | null {
     caId: process.env.FOMO_CA_ID,
     cookies: parseEnvironmentCookies(),
     updatedAt: new Date().toISOString(),
+    accessTokenExpiresAt: tokenExpiry(accessToken),
+    refreshTokenExpiresAt: tokenExpiry(refreshToken),
     identityTokenExpiresAt: tokenExpiry(idToken),
   };
 }
@@ -63,7 +65,19 @@ function safeState(input: Partial<AuthState>, source: AuthState["source"] = "man
     caId: input.caId,
     cookies: Array.isArray(input.cookies) ? input.cookies : [],
     updatedAt: new Date().toISOString(),
+    accessTokenExpiresAt: input.accessTokenExpiresAt ?? tokenExpiry(input.accessToken),
+    refreshTokenExpiresAt: input.refreshTokenExpiresAt ?? tokenExpiry(input.refreshToken),
     identityTokenExpiresAt: input.identityTokenExpiresAt ?? tokenExpiry(input.idToken),
+  };
+}
+
+function deriveExpiryMetadata(state: AuthState | null): AuthState | null {
+  if (!state) return null;
+  return {
+    ...state,
+    accessTokenExpiresAt: state.accessTokenExpiresAt ?? tokenExpiry(state.accessToken),
+    refreshTokenExpiresAt: state.refreshTokenExpiresAt ?? tokenExpiry(state.refreshToken),
+    identityTokenExpiresAt: state.identityTokenExpiresAt ?? tokenExpiry(state.idToken),
   };
 }
 
@@ -73,6 +87,7 @@ export class AuthManager {
   private persisted = false;
   private readonly filePath: string;
   private readonly store: EncryptedJsonStore<AuthState>;
+  private refreshInFlight: Promise<void> | undefined;
 
   constructor(private readonly runtime: RuntimeConfig) {
     this.filePath = process.env.FOMO_MCP_AUTH_FILE
@@ -90,7 +105,7 @@ export class AuthManager {
       this.initialized = true;
       return;
     }
-    this.state = await this.store.read();
+    this.state = deriveExpiryMetadata(await this.store.read());
     this.persisted = this.state?.source !== "environment";
     this.initialized = true;
   }
@@ -101,7 +116,7 @@ export class AuthManager {
 
   private async reloadPersistedState(): Promise<void> {
     await this.ensureInitialized();
-    if (this.persisted) this.state = await this.store.read();
+    if (this.persisted) this.state = deriveExpiryMetadata(await this.store.read());
   }
 
   async status(): Promise<AuthStatus> {
@@ -114,14 +129,24 @@ export class AuthManager {
       hasRefreshToken: Boolean(this.state?.refreshToken),
       cookieCount: this.state?.cookies.length ?? 0,
       updatedAt: this.state?.updatedAt,
+      accessTokenExpiresAt: this.state?.accessTokenExpiresAt,
+      refreshTokenExpiresAt: this.state?.refreshTokenExpiresAt,
       identityTokenExpiresAt: this.state?.identityTokenExpiresAt,
       reauthRequired: !this.state?.idToken || this.identityExpired(),
     };
   }
 
+  private tokenExpired(expiresAt: string | undefined): boolean {
+    if (!expiresAt) return false;
+    return Date.parse(expiresAt) <= Date.now();
+  }
+
   private identityExpired(): boolean {
-    if (!this.state?.identityTokenExpiresAt) return false;
-    return Date.parse(this.state.identityTokenExpiresAt) <= Date.now();
+    return this.tokenExpired(this.state?.identityTokenExpiresAt);
+  }
+
+  private accessExpired(): boolean {
+    return this.tokenExpired(this.state?.accessTokenExpiresAt);
   }
 
   async identityToken(): Promise<string> {
@@ -141,6 +166,31 @@ export class AuthManager {
     await this.reloadPersistedState();
     if (!this.state?.refreshToken) throw new AuthRequiredError("A refresh token is required for this auth operation");
     return this.state.refreshToken;
+  }
+
+  async ensureSession(auth: AuthMode): Promise<void> {
+    if (auth === "none") return;
+    await this.reloadPersistedState();
+
+    const needsIdentity = auth === "identity";
+    const needsAccess = auth === "access";
+    const refreshable = Boolean(this.state?.accessToken && this.state.refreshToken);
+    const refreshNeeded = this.accessExpired() || (needsIdentity && this.identityExpired());
+    if (refreshNeeded && refreshable) await this.refreshSingleFlight();
+    await this.reloadPersistedState();
+
+    if (needsIdentity) {
+      if (!this.state?.idToken) throw new AuthRequiredError("An identity token is required for FOMO API access");
+      if (this.identityExpired()) {
+        throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
+      }
+    }
+    if (needsAccess) {
+      if (!this.state?.accessToken) throw new AuthRequiredError("An access token is required for this auth operation");
+      if (this.accessExpired()) {
+        throw new ReauthRequiredError("Access token is expired; interactive re-authentication is required");
+      }
+    }
   }
 
   async cookiesFor(url: string): Promise<string | undefined> {
@@ -171,6 +221,25 @@ export class AuthManager {
   }
 
   async refreshSession(): Promise<AuthStatus> {
+    await this.refreshSingleFlight();
+    return this.status();
+  }
+
+  private async refreshSingleFlight(): Promise<void> {
+    if (this.refreshInFlight) {
+      await this.refreshInFlight;
+      return;
+    }
+    const operation = this.performRefresh();
+    this.refreshInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.refreshInFlight === operation) this.refreshInFlight = undefined;
+    }
+  }
+
+  private async performRefresh(): Promise<void> {
     await this.reloadPersistedState();
     if (!this.state?.accessToken || !this.state.refreshToken) {
       throw new AuthRequiredError("Both access and refresh tokens are required to refresh the Privy session");
@@ -209,13 +278,15 @@ export class AuthManager {
       }
       this.state.accessToken = data.privy_access_token;
       this.state.refreshToken = data.refresh_token;
-      if (data.token) {
-        this.state.idToken = data.token;
-        this.state.identityTokenExpiresAt = tokenExpiry(data.token);
+      this.state.accessTokenExpiresAt = tokenExpiry(data.privy_access_token);
+      this.state.refreshTokenExpiresAt = tokenExpiry(data.refresh_token);
+      const identityToken = data.token ?? data.identity_token;
+      if (identityToken) {
+        this.state.idToken = identityToken;
+        this.state.identityTokenExpiresAt = tokenExpiry(identityToken);
       }
       this.state.updatedAt = new Date().toISOString();
       await this.persistIfAllowed();
-      return this.status();
     } finally {
       clearTimeout(timeout);
     }

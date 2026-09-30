@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { RuntimeConfig } from "../config/types.js";
 import { AuthManager } from "../auth/auth-manager.js";
-import { ReauthRequiredError, TransportError } from "../errors.js";
+import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import type { Transport, TransportRequest, TransportResponse } from "./transport.js";
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -48,11 +48,15 @@ export class FetchTransport implements Transport {
   async request(request: TransportRequest): Promise<TransportResponse> {
     const requestId = randomUUID();
     const attemptsAllowed = request.retryable ? this.runtime.http.maxRetries + 1 : 1;
+    const authRetryAllowed = request.retryable && request.auth !== "none";
+    const maxAttempts = attemptsAllowed + (authRetryAllowed ? 1 : 0);
+    let authRetried = false;
     let lastError: unknown;
-    for (let attempt = 1; attempt <= attemptsAllowed; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.runtime.http.requestTimeoutMs);
       try {
+        await this.auth.ensureSession(request.auth);
         const headers: Record<string, string> = {
           accept: "application/json",
           origin: this.runtime.http.origin,
@@ -73,6 +77,11 @@ export class FetchTransport implements Transport {
         });
         await this.auth.updateCookies(response.headers, request.url);
         if (response.status === 401) {
+          if (authRetryAllowed && !authRetried) {
+            authRetried = true;
+            await this.auth.refreshSession();
+            continue;
+          }
           throw new ReauthRequiredError("Upstream returned HTTP 401; identity token re-authentication is required");
         }
         if (RETRYABLE_STATUSES.has(response.status) && attempt < attemptsAllowed) {
@@ -84,7 +93,7 @@ export class FetchTransport implements Transport {
         return { status: response.status, url: request.url, requestId, body, headers: response.headers, attempts: attempt };
       } catch (error) {
         lastError = error;
-        if (error instanceof ReauthRequiredError || error instanceof TransportError || attempt >= attemptsAllowed) {
+        if (error instanceof AuthRequiredError || error instanceof ReauthRequiredError || error instanceof TransportError || attempt >= maxAttempts) {
           throw error;
         }
         await delay(this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));

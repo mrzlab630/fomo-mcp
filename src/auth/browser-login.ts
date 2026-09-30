@@ -69,6 +69,17 @@ function browserProfilePath(runtime: RuntimeConfig): string {
   return path.resolve(expanded);
 }
 
+function browserEnvironment(): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  if (!environment.XDG_RUNTIME_DIR && typeof process.getuid === "function") {
+    environment.XDG_RUNTIME_DIR = `/run/user/${process.getuid()}`;
+  }
+  if (!environment.WAYLAND_DISPLAY && environment.XDG_RUNTIME_DIR && existsSync(path.join(environment.XDG_RUNTIME_DIR, "wayland-0"))) {
+    environment.WAYLAND_DISPLAY = "wayland-0";
+  }
+  return environment;
+}
+
 async function ensurePrivateDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await chmod(directory, 0o700);
@@ -194,21 +205,23 @@ export class BrowserLoginManager {
     }
     const profile = browserProfilePath(this.runtime);
     await ensurePrivateDirectory(profile);
-    const lock = await acquireProfileLock(profile);
-    this.profileLocks.set(id, lock);
+    if (!this.profileLocks.has(id)) {
+      const lock = await acquireProfileLock(profile);
+      this.profileLocks.set(id, lock);
+    }
     const executablePath = this.runtime.transport.browser?.executablePath ?? "/opt/google/chrome/chrome";
     if (!existsSync(executablePath)) {
-      await releaseProfileLock(lock);
-      this.profileLocks.delete(id);
       throw new Error(`Chrome executable was not found at ${executablePath}`);
     }
+    const environment = browserEnvironment();
     const chrome = spawn(executablePath, [
       `--user-data-dir=${profile}`,
       "--remote-debugging-port=0",
       "--no-first-run",
       "--no-default-browser-check",
+      ...(environment.WAYLAND_DISPLAY ? ["--ozone-platform=wayland"] : []),
       "about:blank",
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+    ], { env: environment, stdio: ["ignore", "ignore", "pipe"] });
     this.chromeProcesses.set(id, chrome);
     return new Promise<Browser>((resolve, reject) => {
       let stderr = "";
@@ -279,9 +292,29 @@ export class BrowserLoginManager {
           // The browser may receive a non-JSON response during an OAuth redirect.
         }
       });
-      await page.goto("https://fomo.family/", { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.goto("https://fomo.family/token", { waitUntil: "domcontentloaded", timeout: 30000 });
       const deadline = Date.now() + this.runtime.auth.browserLoginTimeoutMs;
       while (Date.now() < deadline) {
+        const chrome = this.chromeProcesses.get(id);
+        if (chrome && (chrome.exitCode !== null || chrome.signalCode !== null)) {
+          throw new Error("Authorization browser was closed before the session was captured");
+        }
+        if (!tokens.accessToken || !tokens.refreshToken) {
+          const stored = await page.evaluate(() => {
+            const read = (key: string): string | undefined => {
+              const raw = localStorage.getItem(key);
+              if (!raw) return undefined;
+              try {
+                const value: unknown = JSON.parse(raw);
+                return typeof value === "string" && value !== "deprecated" ? value : undefined;
+              } catch { return undefined; }
+            };
+            return { accessToken: read("privy:pat"), refreshToken: read("privy:refresh_token"), caId: read("privy:caid") };
+          });
+          if (stored.accessToken) tokens.accessToken = stored.accessToken;
+          if (stored.refreshToken) tokens.refreshToken = stored.refreshToken;
+          if (stored.caId) tokens.caId = stored.caId;
+        }
         if (tokens.idToken && tokens.accessToken && tokens.refreshToken) {
           const cookies = cookiesFromContext(await context.cookies());
           await this.auth.importState({ ...tokens, cookies }, "browser-login");

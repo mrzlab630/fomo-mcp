@@ -34,7 +34,7 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 
 Endpoint parameters are exposed as top-level MCP input fields. The adapter builds path, query and body values from the catalog and handles the known `tokenAddress` to upstream `address` conversion for holders routes.
 
-The configured transport is `hybrid`: Privy and auxiliary sources use direct fetch, while FOMO API calls run from an ordinary headed Chrome page because the FOMO edge rejects non-browser clients. The browser transport does not disable automation flags or spoof browser properties. It uses Chrome app mode (no tabs or address bar), starts minimized at the configured minimal window size (`1x1` by default), and requires a graphical Chrome session.
+The configured transport is `hybrid`: Privy and auxiliary sources use direct fetch, while FOMO API calls run from an ordinary headed Chrome page because the FOMO edge rejects non-browser clients. The browser transport does not disable automation flags or spoof browser properties. It uses Chrome app mode (no tabs or address bar), starts at the configured window position (`10000,10000` by default, which places it at the work-area edge under Xwayland), minimizes before navigation, and uses the configured minimal window size (`1x1` by default). A pure Wayland compositor may ignore window-position flags, but the transport still minimizes the window through CDP and requires a graphical Chrome session.
 
 ## Auth state
 
@@ -78,11 +78,11 @@ The PM2 daemon provides a user-driven local flow. The MCP tool `fomo_auth_start`
 http://127.0.0.1:8387/auth/form
 ```
 
-The page starts a separate visible Chrome window with a dedicated persistent profile. On the first run, the user completes the normal FOMO/Google login there. Later runs reuse that profile's Google session, so the user normally only confirms the login instead of entering credentials again. The flow observes only that browser session, captures the ID/access/refresh values emitted by the FOMO/Privy login and the session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and an optional expiry timestamp.
+The page starts a separate visible Chrome window with a dedicated persistent profile. On the first run, the user completes the normal FOMO/Google login there. Later runs reuse that profile's Google session, so the user normally only confirms the login instead of entering credentials again. The flow observes only that browser session, captures the ID/access/refresh values emitted by the FOMO/Privy login and the session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and optional JWT expiry timestamps for the access, refresh and identity tokens.
 
 The dedicated profile defaults to `~/.local/share/fomo-mcp/google-profile`. Override it with `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` in `config/runtime.json`. Do not point it at the user's normal Chrome profile. The profile contains a Google browser session and must be protected as sensitive local data.
 
-When an identity token expires, a data tool returns `reauthRequired: true` and the same local link. The agent can send that link to the user and retry after `fomo_auth_status` reports a fresh session. The refresh endpoint can rotate access/refresh tokens, but it cannot mint a new identity token.
+Before an authenticated request, the gateway can perform one shared Privy refresh when the stored access or identity token has expired. A read-only request may also perform one refresh-and-retry after an upstream HTTP 401; mutating requests are never retried. When an identity token remains expired, the data tool returns `reauthRequired: true` and the same local link. The agent can send that link to the user and retry after `fomo_auth_status` reports a fresh session. The refresh endpoint can rotate access/refresh tokens, but it normally cannot mint a new identity token.
 
 The browser flow uses ordinary visible Chrome and does not disable automation flags or spoof `navigator.webdriver`. It is a local interactive login helper, not a stealth collector. It requires a graphical session and a locally installed Google Chrome; on a headless host it fails with a status message and leaves the existing auth state untouched.
 

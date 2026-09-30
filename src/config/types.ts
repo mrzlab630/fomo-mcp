@@ -84,6 +84,8 @@ export interface RuntimeConfig {
       startMinimized?: boolean;
       windowWidth?: number;
       windowHeight?: number;
+      windowPositionX?: number;
+      windowPositionY?: number;
       executablePath?: string;
       origin?: string;
     };
@@ -134,6 +136,8 @@ export interface AuthState {
   caId?: string;
   cookies: StoredCookie[];
   updatedAt: string;
+  accessTokenExpiresAt?: string;
+  refreshTokenExpiresAt?: string;
   identityTokenExpiresAt?: string;
 }
 
@@ -145,6 +149,8 @@ export interface AuthStatus {
   hasRefreshToken: boolean;
   cookieCount: number;
   updatedAt?: string;
+  accessTokenExpiresAt?: string;
+  refreshTokenExpiresAt?: string;
   identityTokenExpiresAt?: string;
   reauthRequired: boolean;
 }

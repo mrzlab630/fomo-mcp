@@ -24,6 +24,8 @@
       "startMinimized": true,
       "windowWidth": 1,
       "windowHeight": 1,
+      "windowPositionX": 10000,
+      "windowPositionY": 10000,
       "origin": "https://fomo.family"
     }
   },
