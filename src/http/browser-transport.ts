@@ -199,19 +199,22 @@ export class BrowserTransport implements Transport {
     const windowPositionX = Math.floor(browserConfig.windowPositionX ?? 10000);
     const windowPositionY = Math.floor(browserConfig.windowPositionY ?? 10000);
     const origin = browserConfig.origin ?? this.runtime.http.origin;
+    const avoidFocus = browserConfig.avoidFocus ?? true;
     const environment = browserEnvironment();
     process.once("exit", this.killChromeOnExit);
-    const chrome = spawn(browserConfig.executablePath ?? defaultChromePath(), [
+    const chromeArgs = [
       `--user-data-dir=${profile}`,
       "--remote-debugging-port=0",
       "--no-first-run",
       "--no-default-browser-check",
+      ...(avoidFocus ? ["--no-startup-window"] : []),
       ...(browserConfig.startMinimized ? ["--start-minimized"] : []),
       `--window-size=${windowWidth},${windowHeight}`,
       `--window-position=${windowPositionX},${windowPositionY}`,
       ...windowingArguments(environment),
-      ...(browserConfig.appMode ? [`--app=${origin}`] : [origin]),
-    ], { detached: true, env: environment, stdio: ["ignore", "ignore", "pipe"] });
+      ...(avoidFocus ? [] : browserConfig.appMode ? [`--app=${origin}`] : [origin]),
+    ];
+    const chrome = spawn(browserConfig.executablePath ?? defaultChromePath(), chromeArgs, { detached: true, env: environment, stdio: ["ignore", "ignore", "pipe"] });
     this.chromeProcess = chrome;
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = "";
@@ -228,7 +231,24 @@ export class BrowserTransport implements Transport {
     });
     this.browser = await chromium.connectOverCDP(endpoint);
     const context = this.browser.contexts()[0] ?? await this.browser.newContext();
-    this.page = context.pages()[0] ?? await context.newPage();
+    if (avoidFocus) {
+      // `context.newPage()` asks Chrome to focus a newly created window. Create
+      // the target through CDP as a background tab instead, so the compositor
+      // keeps the user's active window untouched from the first page event.
+      const browserSession = await this.browser.newBrowserCDPSession();
+      await browserSession.send("Target.createTarget", {
+        url: "about:blank",
+        background: true,
+        focus: false,
+      });
+      await browserSession.detach().catch(() => undefined);
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        this.page = context.pages()[0];
+        if (this.page) break;
+        await delay(20);
+      }
+    }
+    this.page ??= context.pages()[0] ?? await context.newPage();
     await this.minimizeWindow(context, this.page);
     await this.page.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 });
     return this.page;

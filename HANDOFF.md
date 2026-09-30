@@ -25,10 +25,16 @@ mutations, scraping, stealth flags, or browser-property spoofing.
   401; mutation requests are not retried.
 - Manual OAuth accepts callbacks from `/favicon.ico` and `/token` after state
   and PKCE validation.
-- The background FOMO browser transport uses ordinary headed Chrome in app
-  mode. `transport.browser.windowPositionX/Y` defaults to `10000,10000`.
-  With a valid Xwayland session it starts at that work-area edge before CDP
-  minimizes it; Wayland fallback still minimizes through CDP.
+- The endpoint catalog now requires repeated `feedTypes` for clan feeds and
+  uses Unix epoch milliseconds for the required `afterTime` on sorted token
+  thesis queries.
+- The background FOMO browser transport uses ordinary headed Chrome.
+  `transport.browser.avoidFocus` defaults to true, so Chrome starts
+  without an initial startup window and CDP minimizes the short-lived page
+  before navigation. `transport.browser.windowPositionX/Y` defaults to
+  `10000,10000`; with a valid Xwayland session it also starts at that
+  work-area edge. Wayland fallback relies on no-startup-window plus CDP
+  minimize because the compositor owns placement.
 - The interactive authorization browser remains visible because the user must
   complete the login there.
 

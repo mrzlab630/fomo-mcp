@@ -21,6 +21,7 @@
     "browser": {
       "headed": true,
       "appMode": true,
+      "avoidFocus": true,
       "startMinimized": true,
       "windowWidth": 1,
       "windowHeight": 1,

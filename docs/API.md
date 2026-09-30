@@ -35,7 +35,13 @@ Base URLs: `fomo=https://prod-api.fomo.family`, `mobula=https://mobula-api.fomo.
 | `fomo_get_clan` | GET | `/v2/clans/{id}` | `id`, `window?` | exposed |
 | `fomo_get_clan_holdings` | GET | `/v2/clans/{id}/holdings` | `id`, `limit?` | exposed |
 | `fomo_get_clan_holding_breakdown` | GET | `/v2/clans/{id}/holdings/breakdown` | `id`, `tokenAddress`, `networkId` | exposed |
-| `fomo_get_clan_feed` | GET | `/v2/clans/{id}/feed` | `id`, `limit?`, `feedTypes[]?` | exposed |
+| `fomo_get_clan_feed` | GET | `/v2/clans/{id}/feed` | `id`, `feedTypes[]`, `limit?` | exposed |
+
+`feedTypes` is a required repeated query field. Supported values are
+`single_user_sell`, `single_user_transfer_out`, `user_trade_profit_milestone`,
+`large_buy`, `large_sell`, `large_transfer_in`, `large_transfer_out`, `manual`,
+`multi_user_buy`, `multi_user_sell`, `new_token_listing`, `price_since_listing`,
+`user_with_smart_following`, and `thesis_created`.
 
 ## Trades
 
@@ -66,7 +72,7 @@ Base URLs: `fomo=https://prod-api.fomo.family`, `mobula=https://mobula-api.fomo.
 | --- | --- | --- | --- | --- |
 | `fomo_token_feed` | GET | `/feed/token` | `tokenAddress`, `networkId`, `limit?`, `threshold?`, `excludeThesis?` | exposed |
 | `fomo_token_thesis` | GET | `/feed/token/thesis` | `tokenAddress`, `networkId`, `limit?`, `threshold?` | exposed |
-| `fomo_token_sorted_thesis` | GET | `/feed/token/sortedThesis` | token + `afterTime?`, `beforeTime?` | exposed |
+| `fomo_token_sorted_thesis` | GET | `/feed/token/sortedThesis` | token + `afterTime` required, `beforeTime?` (Unix epoch milliseconds) | exposed |
 | `fomo_trading_activity` | GET | `/feed/tradingActivity` | `limit?`, `threshold?` | exposed |
 | `fomo_get_watchlist` | GET | `/watchlist` | none | exposed |
 | `fomo_transfers_with` | GET | `/v2/transfers/with/{userId}` | `userId` | exposed |

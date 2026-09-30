@@ -81,6 +81,8 @@ export interface RuntimeConfig {
     browser?: {
       headed: boolean;
       appMode?: boolean;
+      /** Start the API browser without creating an initial foreground window. */
+      avoidFocus?: boolean;
       startMinimized?: boolean;
       windowWidth?: number;
       windowHeight?: number;
