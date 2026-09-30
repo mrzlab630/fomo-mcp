@@ -35,7 +35,33 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 
 Endpoint parameters are exposed as top-level MCP input fields. The adapter builds path, query and body values from the catalog and handles the known `tokenAddress` to upstream `address` conversion for holders routes.
 
+The refreshed catalog contains 61 upstream records, with 56 read-only data tools exposed and five disabled/internal references. Two local authentication tools are registered separately. Detailed parameter tables, wire serialization, path overrides, auth modes, time units, and MCP argument examples are generated in [docs/API.md](docs/API.md).
+
 Time bounds for `fomo_token_sorted_thesis` use Unix epoch milliseconds; `afterTime` is required by the upstream API. Clan feeds require at least one supported `feedTypes` value and send it as a repeated query field.
+
+### Endpoint discovery and maintenance
+
+Install the development dependencies and build before running maintenance:
+
+```bash
+npm ci
+npm run build
+npm run endpoints:discover
+npm run endpoints:discover -- --baseline latest
+```
+
+Discovery reads public production HTML and JavaScript assets without starting a browser or requiring authentication. It writes JSON and Markdown reports to the configured `discovery.outputDir` (default `reports/`), with new route references, missing catalog references, evidence URLs/hashes, and changes since the optional baseline. Download limits and concurrency are in `config/runtime.json`. Missing references do not prove removal; frontend assets are evidence, not an official API specification.
+
+An agent can run this command periodically as a separate maintenance task using [the endpoint maintenance procedure](docs/AGENT_WORKFLOW.md#endpoint-maintenance-run). `--baseline latest` compares with the last saved snapshot. Review unknown routes and changed evidence, then update existing contracts in `config/endpoints.json`. Approved new read-only records may be staged in that same file's optional top-level `discoveryCandidates` array, which does not register MCP tools. Promote staged records with current route evidence and regenerate documentation:
+
+```bash
+npm run endpoints:discover -- --apply
+npm run docs:api
+npm run build
+npm run test:endpoints
+```
+
+Default discovery is report-only. `--apply` accepts only reviewed records in the configured catalog, rejects mutations/internal records/conflicts and catalog changes during discovery, writes atomically, and refreshes provenance. It never removes endpoints or infers new schemas from arbitrary route strings. Run one apply process at a time. Restart affected MCP hosts and the daemon after updating schemas; they load the catalog at startup. Confirm new routes with authorized read-only requests and recorded HTTP status/request ids before treating them as live verified.
 
 The configured transport is `hybrid`: Privy and auxiliary sources use direct fetch, while FOMO API calls run from an ordinary headed Chrome page because the FOMO edge rejects non-browser clients. The browser transport does not disable automation flags or spoof browser properties. With `transport.browser.avoidFocus` enabled (the default), Chrome starts without an initial startup window, creates a background tab through CDP, and minimizes its short-lived page before navigation. This prevents the API browser from taking focus; `appMode` is used only by the explicit focus-allowed fallback. The configured work-area edge (`10000,10000` by default under Xwayland) and minimal window size (`1x1` by default) remain available as fallback controls. A pure Wayland compositor may ignore window-position flags, while the background-target path still avoids initial activation. The interactive authorization browser is separate and remains visible for login.
 

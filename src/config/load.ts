@@ -26,10 +26,14 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
   return config;
 }
 
-export async function loadEndpointMap(): Promise<EndpointMap> {
-  const filePath = process.env.FOMO_MCP_ENDPOINTS_CONFIG
+export function resolveEndpointMapPath(): string {
+  return process.env.FOMO_MCP_ENDPOINTS_CONFIG
     ? path.resolve(process.env.FOMO_MCP_ENDPOINTS_CONFIG)
     : path.resolve(configRoot(), "endpoints.json");
+}
+
+export async function loadEndpointMap(): Promise<EndpointMap> {
+  const filePath = resolveEndpointMapPath();
   const map = await readJson<EndpointMap>(filePath);
   if (!Array.isArray(map.endpoints) || map.endpoints.length === 0) {
     throw new Error(`Endpoint map is empty or invalid: ${filePath}`);

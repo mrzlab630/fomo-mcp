@@ -52,3 +52,33 @@ the local daemon directly when the MCP tools are available.
   do not invent parameters or switch to an undocumented route.
 - Never expose tokens, cookies, OAuth codes, the master key, or a complete auth
   import. All registered data tools are read-only.
+
+## Endpoint maintenance run
+
+Use this sequence as a separate periodic task from data collection. All project
+documentation and catalog descriptions remain in English.
+
+1. Run `npm run build`, then `npm run endpoints:discover`. For subsequent runs,
+   pass `-- --baseline latest`, which selects the newest version 2 report in
+   the configured output directory. Retain the generated JSON snapshot.
+2. Read `unmappedRoutes`, `catalogOnly`, and `changes`. Open only the referenced
+   public asset URLs needed to inspect each change. A missing string is not
+   proof of deprecation; a changed SHA-256 hash signals possible contract drift.
+3. Verify method, base, auth, parameters, wire names, cursors and side effects.
+   Edit existing schemas in `config/endpoints.json`. Put approved new complete
+   read-only records in its optional `discoveryCandidates` array, then run
+   `npm run endpoints:discover -- --apply`. Never stage wallet/signing/mutation
+   or sensitive credential-export routes. Never enable disabled records from
+   discovery alone. Use one apply process at a time.
+4. Run `npm run docs:api`, `npm run build`, `npm run test:endpoints`, and
+   `git diff --check`. Inspect the catalog and generated API reference. Keep
+   the discovery JSON/Markdown reports under ignored `reports/`.
+5. Restart affected MCP processes and the daemon to reload the catalog. When
+   auth is ready, probe each added/changed read-only route and record status
+   and request id. If `reauthRequired` is true, report live verification as
+   pending and follow the reauthorization path; do not launch repeated requests.
+
+Discovery downloads bounded public assets and parses them without executing
+JavaScript, starting a browser, or accessing auth state. It does not infer
+parameter contracts or establish live readiness. It requires the development
+TypeScript dependency (`npm ci`, without `--omit=dev`).

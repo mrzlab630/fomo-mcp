@@ -53,5 +53,13 @@
     "healthPort": 8387,
     "heartbeatIntervalMs": 30000,
     "collectorEnabled": false
+  },
+  "discovery": {
+    "sourceUrl": "https://fomo.family/",
+    "outputDir": "reports",
+    "maxAssets": 400,
+    "maxAssetBytes": 5242880,
+    "maxTotalBytes": 20971520,
+    "concurrency": 6
   }
 }

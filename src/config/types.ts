@@ -8,6 +8,8 @@ export type ParamType = "string" | "number" | "boolean" | "array" | "object";
 export interface EndpointField {
   type: ParamType;
   required?: boolean;
+  minimum?: number;
+  maximum?: number;
   items?: EndpointField;
   fields?: Record<string, EndpointField>;
   description?: string;
@@ -28,6 +30,7 @@ export interface EndpointParam extends EndpointField {
 export interface EndpointRequest {
   body?: "object" | "tokenIds";
   params: EndpointParam[];
+  atLeastOneOf?: string[];
 }
 
 export interface EndpointResponse {
@@ -58,8 +61,21 @@ export interface EndpointMap {
     repository: string;
     commit: string;
     status: string;
+    discoveredAt?: string;
+    discoveryUrl?: string;
+    discoveryManifest?: string;
   };
   endpoints: EndpointConfig[];
+  discoveryCandidates?: EndpointConfig[];
+}
+
+export interface EndpointDiscoveryConfig {
+  sourceUrl: string;
+  outputDir: string;
+  maxAssets: number;
+  maxAssetBytes: number;
+  maxTotalBytes: number;
+  concurrency: number;
 }
 
 export interface RuntimeConfig {
@@ -116,6 +132,7 @@ export interface RuntimeConfig {
     heartbeatIntervalMs: number;
     collectorEnabled: boolean;
   };
+  discovery?: EndpointDiscoveryConfig;
 }
 
 export interface StoredCookie {

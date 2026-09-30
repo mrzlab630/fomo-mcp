@@ -1,9 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "source": {
     "repository": "https://github.com/ColinEdw/fomo-mcp",
     "commit": "e97d14a194a65ec74cc420ba2af3a6956631e48f",
-    "status": "reverse-engineered reference; verify before live use"
+    "status": "reverse-engineered reference; refreshed from production frontend; verify before live use",
+    "discoveredAt": "2026-09-30T13:05:59.279Z",
+    "discoveryUrl": "https://fomo.family/",
+    "discoveryManifest": "86d0b4f8"
   },
   "endpoints": [
     {
@@ -13,8 +16,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/userHandle/{handle}",
-      "request": { "params": [{ "name": "handle", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "User", "description": "User profile for the requested handle." },
+      "request": {
+        "params": [
+          {
+            "name": "handle",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "User",
+        "description": "User profile for the requested handle."
+      },
       "description": "Read a FOMO user by handle.",
       "auth": "identity",
       "sideEffect": "none",
@@ -27,8 +42,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "User", "description": "User profile for the requested id." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "User",
+        "description": "User profile for the requested id."
+      },
       "description": "Read a FOMO user by id.",
       "auth": "identity",
       "sideEffect": "none",
@@ -41,8 +68,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/current/followingIds",
-      "request": { "params": [] },
-      "response": { "type": "FollowingIds", "description": "Ids followed by the authenticated account." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "FollowingIds",
+        "description": "Ids followed by the authenticated account."
+      },
       "description": "Read ids followed by the current account.",
       "auth": "identity",
       "sideEffect": "none",
@@ -55,8 +87,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/fuzzy-search",
-      "request": { "params": [{ "name": "searchTerm", "source": "query", "type": "string", "required": true }] },
-      "response": { "type": "UserSearch", "description": "Matching user profiles." },
+      "request": {
+        "params": [
+          {
+            "name": "searchTerm",
+            "source": "query",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "UserSearch",
+        "description": "Matching user profiles."
+      },
       "description": "Fuzzy-search users by term.",
       "auth": "identity",
       "sideEffect": "none",
@@ -69,8 +113,33 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}/swaps",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }, { "name": "tokenAddress", "source": "query", "type": "string", "required": false }] },
-      "response": { "type": "UserSwaps", "description": "Swap history returned by the upstream service; no swap is executed." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "lastSwapIdV2",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous swaps page."
+          }
+        ]
+      },
+      "response": {
+        "type": "UserSwaps",
+        "description": "Swap history returned by the upstream service; no swap is executed."
+      },
       "description": "Read swap history for a user.",
       "auth": "identity",
       "sideEffect": "none",
@@ -83,8 +152,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}/leaderboard",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "UserRank", "description": "Rank cuts returned by FOMO." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "UserRank",
+        "description": "Rank cuts returned by FOMO."
+      },
       "description": "Read leaderboard rank data for a user.",
       "auth": "identity",
       "sideEffect": "none",
@@ -97,8 +178,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}/spotlight",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "UserSpotlight", "description": "Best trades and comments returned by FOMO." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "UserSpotlight",
+        "description": "Best trades and comments returned by FOMO."
+      },
       "description": "Read a user's spotlight data.",
       "auth": "identity",
       "sideEffect": "none",
@@ -111,8 +204,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}/recommendedUsers",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "RecommendedUsers", "description": "Recommended users returned by FOMO." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "RecommendedUsers",
+        "description": "Recommended users returned by FOMO."
+      },
       "description": "Read recommended users.",
       "auth": "identity",
       "sideEffect": "none",
@@ -125,8 +230,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/users/{id}/balances",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "Balances", "description": "Token balances for a user." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "Balances",
+        "description": "Token balances for a user."
+      },
       "description": "Read token balances.",
       "auth": "identity",
       "sideEffect": "none",
@@ -139,8 +256,33 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/userTokens/aggregatedSnapshot",
-      "request": { "params": [{ "name": "userId", "source": "query", "type": "string", "required": true }, { "name": "timestamp", "source": "query", "type": "string", "required": true }] },
-      "response": { "type": "PnlEquitySeries", "description": "Historical PnL/equity series from the requested timestamp." },
+      "request": {
+        "params": [
+          {
+            "name": "userId",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "timestamp",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "interval",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "description": "Production UI uses 4 for 30-day aggregation."
+          }
+        ]
+      },
+      "response": {
+        "type": "PnlEquitySeries",
+        "description": "Historical PnL/equity series from the requested timestamp."
+      },
       "description": "Read a user's PnL and equity series.",
       "auth": "identity",
       "sideEffect": "none",
@@ -153,8 +295,26 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/userTokens/aggregatedSnapshotById",
-      "request": { "params": [{ "name": "userId", "source": "query", "type": "string", "required": true }, { "name": "snapshotId", "source": "query", "type": "number", "required": true }] },
-      "response": { "type": "PnlSnapshot", "description": "One historical PnL/equity snapshot." },
+      "request": {
+        "params": [
+          {
+            "name": "userId",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "snapshotId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "PnlSnapshot",
+        "description": "One historical PnL/equity snapshot."
+      },
       "description": "Read one PnL/equity snapshot.",
       "auth": "identity",
       "sideEffect": "none",
@@ -167,9 +327,25 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/leaderboard/{window}",
-      "pathOverrides": { "all": "/v2/leaderboard" },
-      "request": { "params": [{ "name": "window", "source": "path", "type": "string", "required": false, "default": "24h", "description": "24h, 7d, 30d, or all." }] },
-      "response": { "type": "Leaderboard", "description": "User leaderboard for the selected window." },
+      "pathOverrides": {
+        "all": "/v2/leaderboard"
+      },
+      "request": {
+        "params": [
+          {
+            "name": "window",
+            "source": "path",
+            "type": "string",
+            "required": false,
+            "default": "24h",
+            "description": "24h, 7d, 30d, or all."
+          }
+        ]
+      },
+      "response": {
+        "type": "Leaderboard",
+        "description": "User leaderboard for the selected window."
+      },
       "description": "Read the user leaderboard.",
       "auth": "identity",
       "sideEffect": "none",
@@ -182,8 +358,38 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/leaderboard",
-      "request": { "params": [{ "name": "window", "source": "query", "type": "string", "required": false, "default": "24h" }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }] },
-      "response": { "type": "ClanLeaderboard", "description": "Clan leaderboard for the selected window." },
+      "request": {
+        "params": [
+          {
+            "name": "window",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "24h",
+            "description": "24h, 7d, 30d, or all."
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 50
+          },
+          {
+            "name": "cursor",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor for the next page."
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanLeaderboard",
+        "description": "Clan leaderboard for the selected window."
+      },
       "description": "Read the clan leaderboard.",
       "auth": "identity",
       "sideEffect": "none",
@@ -196,8 +402,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/search",
-      "request": { "params": [{ "name": "searchTerm", "source": "query", "type": "string", "required": true }] },
-      "response": { "type": "ClanSearch", "description": "Matching clans." },
+      "request": {
+        "params": [
+          {
+            "name": "searchTerm",
+            "source": "query",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanSearch",
+        "description": "Matching clans."
+      },
       "description": "Search clans by term.",
       "auth": "identity",
       "sideEffect": "none",
@@ -210,8 +428,26 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/{id}",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }, { "name": "window", "source": "query", "type": "string", "required": false }] },
-      "response": { "type": "Clan", "description": "Clan details." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "window",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "Clan",
+        "description": "Clan details."
+      },
       "description": "Read clan details.",
       "auth": "identity",
       "sideEffect": "none",
@@ -224,8 +460,36 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/{id}/holdings",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 20 }] },
-      "response": { "type": "ClanHoldings", "description": "Token holdings for a clan." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 20,
+            "minimum": 1,
+            "maximum": 20
+          },
+          {
+            "name": "cursor",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor in tokenAddress:networkId form."
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanHoldings",
+        "description": "Token holdings for a clan."
+      },
       "description": "Read clan holdings.",
       "auth": "identity",
       "sideEffect": "none",
@@ -238,8 +502,32 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/{id}/holdings/breakdown",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }, { "name": "tokenAddress", "source": "query", "type": "string", "required": true }, { "name": "networkId", "source": "query", "type": "number", "required": true }] },
-      "response": { "type": "ClanHoldingBreakdown", "description": "Per-member holdings breakdown." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanHoldingBreakdown",
+        "description": "Per-member holdings breakdown."
+      },
       "description": "Read the breakdown of a clan holding.",
       "auth": "identity",
       "sideEffect": "none",
@@ -252,8 +540,38 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/clans/{id}/feed",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }, { "name": "feedTypes", "source": "query", "type": "array", "items": { "type": "string" }, "required": true, "serialize": "repeat", "description": "One or more clan activity types. Supported values: single_user_sell, single_user_transfer_out, user_trade_profit_milestone, large_buy, large_sell, large_transfer_in, large_transfer_out, manual, multi_user_buy, multi_user_sell, new_token_listing, price_since_listing, user_with_smart_following, thesis_created." }] },
-      "response": { "type": "ClanFeed", "description": "Clan activity feed." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50
+          },
+          {
+            "name": "feedTypes",
+            "source": "query",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": true,
+            "serialize": "repeat",
+            "description": "One or more clan activity types. Supported values: single_user_sell, single_user_transfer_out, user_trade_profit_milestone, large_buy, large_sell, large_transfer_in, large_transfer_out, manual, multi_user_buy, multi_user_sell, new_token_listing, price_since_listing, user_with_smart_following, thesis_created."
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanFeed",
+        "description": "Clan activity feed."
+      },
       "description": "Read clan activity.",
       "auth": "identity",
       "sideEffect": "none",
@@ -266,8 +584,42 @@
       "base": "fomo",
       "method": "GET",
       "path": "/trades",
-      "request": { "params": [{ "name": "userId", "source": "query", "type": "string", "required": false }, { "name": "orderBy", "source": "query", "type": "string", "required": false }, { "name": "tokenAddress", "source": "query", "type": "string", "required": false }] },
-      "response": { "type": "Trades", "description": "Trade records matching filters." },
+      "request": {
+        "params": [
+          {
+            "name": "userId",
+            "source": "query",
+            "type": "string",
+            "required": true,
+            "description": "The user whose trades are requested."
+          },
+          {
+            "name": "orderBy",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "closedAt",
+            "description": "Sort field; the production UI uses closedAt."
+          },
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "lastTradeId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous trades page."
+          }
+        ]
+      },
+      "response": {
+        "type": "Trades",
+        "description": "Trade records matching filters."
+      },
       "description": "Read trades with optional filters.",
       "auth": "identity",
       "sideEffect": "none",
@@ -280,8 +632,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/trades/{id}",
-      "request": { "params": [{ "name": "id", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "Trade", "description": "One trade with token metadata." },
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "Trade",
+        "description": "One trade with token metadata."
+      },
       "description": "Read one trade.",
       "auth": "identity",
       "sideEffect": "none",
@@ -294,8 +658,26 @@
       "base": "fomo",
       "method": "GET",
       "path": "/trades/{tradeId}/comments",
-      "request": { "params": [{ "name": "tradeId", "source": "path", "type": "string", "required": true }, { "name": "lastCommentId", "source": "query", "type": "string", "required": false }] },
-      "response": { "type": "TradeComments", "description": "Comments for a trade with optional cursor." },
+      "request": {
+        "params": [
+          {
+            "name": "tradeId",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "lastCommentId",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "TradeComments",
+        "description": "Comments for a trade with optional cursor."
+      },
       "description": "Read comments for a trade.",
       "auth": "identity",
       "sideEffect": "none",
@@ -308,8 +690,40 @@
       "base": "fomo",
       "method": "POST",
       "path": "/swaps/v2",
-      "request": { "body": "object", "params": [{ "name": "inTokenId", "source": "body", "type": "string", "required": true }, { "name": "outTokenId", "source": "body", "type": "string", "required": true }, { "name": "amount", "source": "body", "type": "string", "required": true }, { "name": "retry", "source": "body", "type": "number", "required": false, "default": 0 }] },
-      "response": { "type": "SwapQuote", "description": "Quote only; execution is intentionally excluded." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "inTokenId",
+            "source": "body",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "outTokenId",
+            "source": "body",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "amount",
+            "source": "body",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "retry",
+            "source": "body",
+            "type": "number",
+            "required": false,
+            "default": 0
+          }
+        ]
+      },
+      "response": {
+        "type": "SwapQuote",
+        "description": "Quote only; execution is intentionally excluded."
+      },
       "description": "Reference endpoint only; disabled as an MCP tool.",
       "auth": "identity",
       "sideEffect": "none",
@@ -323,8 +737,25 @@
       "base": "fomo",
       "method": "POST",
       "path": "/proxy/filterTokens",
-      "request": { "body": "tokenIds", "params": [{ "name": "tokenIds", "source": "body", "type": "array", "items": { "type": "string" }, "required": true, "bodyMode": "direct" }] },
-      "response": { "type": "TokenMarketData[]", "description": "Market data for requested token ids." },
+      "request": {
+        "body": "tokenIds",
+        "params": [
+          {
+            "name": "tokenIds",
+            "source": "body",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": true,
+            "bodyMode": "direct"
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenMarketData[]",
+        "description": "Market data for requested token ids."
+      },
       "description": "Read market data for a list of token ids.",
       "auth": "identity",
       "sideEffect": "none",
@@ -337,9 +768,34 @@
       "base": "fomo",
       "method": "POST",
       "path": "/proxy/filterTokensSearch",
-      "request": { "body": "object", "params": [{ "name": "phrase", "source": "body", "type": "string", "required": true }] },
-      "response": { "type": "TokenSearch", "description": "Matching tokens." },
-      "description": "Search tokens by phrase.",
+      "request": {
+        "body": "object",
+        "atLeastOneOf": [
+          "phrase",
+          "token"
+        ],
+        "params": [
+          {
+            "name": "phrase",
+            "source": "body",
+            "type": "string",
+            "required": false,
+            "description": "Token name or symbol search phrase; provide a non-empty phrase or token."
+          },
+          {
+            "name": "token",
+            "source": "body",
+            "type": "string",
+            "required": false,
+            "description": "Token address search accepted by the current frontend."
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenSearch",
+        "description": "Matching tokens."
+      },
+      "description": "Search tokens by phrase or address; provide at least one non-empty phrase or token.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true
@@ -351,8 +807,21 @@
       "base": "fomo",
       "method": "POST",
       "path": "/proxy/tokenDetails",
-      "request": { "body": "object", "params": [{ "name": "tokenId", "source": "body", "type": "string", "required": true }] },
-      "response": { "type": "TokenDetails", "description": "Token volumes, counts and holder metadata." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "tokenId",
+            "source": "body",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenDetails",
+        "description": "Token volumes, counts and holder metadata."
+      },
       "description": "Read detailed token information.",
       "auth": "identity",
       "sideEffect": "none",
@@ -365,8 +834,29 @@
       "base": "fomo",
       "method": "POST",
       "path": "/proxy/tokenWarnings",
-      "request": { "body": "object", "params": [{ "name": "tokenAddress", "source": "body", "input": "tokenAddress", "type": "string", "required": true, "wireName": "address" }, { "name": "networkId", "source": "body", "type": "number", "required": true }] },
-      "response": { "type": "TokenWarnings", "description": "Token allowlist and buy/sell warning flags." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "tokenAddress",
+            "source": "body",
+            "input": "tokenAddress",
+            "type": "string",
+            "required": true,
+            "wireName": "address"
+          },
+          {
+            "name": "networkId",
+            "source": "body",
+            "type": "number",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenWarnings",
+        "description": "Token allowlist and buy/sell warning flags."
+      },
       "description": "Read token warning flags.",
       "auth": "identity",
       "sideEffect": "none",
@@ -379,8 +869,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/proxy/verifiedTokens",
-      "request": { "params": [] },
-      "response": { "type": "VerifiedTokens", "description": "Verified token list." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "VerifiedTokens",
+        "description": "Verified token list."
+      },
       "description": "Read verified tokens.",
       "auth": "identity",
       "sideEffect": "none",
@@ -393,8 +888,37 @@
       "base": "fomo",
       "method": "GET",
       "path": "/hodlers/top",
-      "request": { "params": [{ "name": "tokens", "source": "query", "type": "array", "items": { "type": "object", "fields": { "tokenAddress": { "type": "string", "required": true }, "networkId": { "type": "number", "required": true } } }, "required": true, "serialize": "json", "rename": { "tokenAddress": "address" } }] },
-      "response": { "type": "TopHolders", "description": "Top holder data for requested tokens." },
+      "request": {
+        "params": [
+          {
+            "name": "tokens",
+            "source": "query",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "fields": {
+                "tokenAddress": {
+                  "type": "string",
+                  "required": true
+                },
+                "networkId": {
+                  "type": "number",
+                  "required": true
+                }
+              }
+            },
+            "required": true,
+            "serialize": "json",
+            "rename": {
+              "tokenAddress": "address"
+            }
+          }
+        ]
+      },
+      "response": {
+        "type": "TopHolders",
+        "description": "Top holder data for requested tokens."
+      },
       "description": "Read top holders. The wire adapter normalizes tokenAddress to upstream address.",
       "auth": "identity",
       "sideEffect": "none",
@@ -407,8 +931,26 @@
       "base": "fomo",
       "method": "GET",
       "path": "/hodlers/devs",
-      "request": { "params": [{ "name": "tokenAddress", "source": "query", "type": "string", "required": true }, { "name": "networkId", "source": "query", "type": "number", "required": true }] },
-      "response": { "type": "DeveloperHoldings", "description": "Developer holdings for a token." },
+      "request": {
+        "params": [
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "DeveloperHoldings",
+        "description": "Developer holdings for a token."
+      },
       "description": "Read developer holdings.",
       "auth": "identity",
       "sideEffect": "none",
@@ -421,8 +963,37 @@
       "base": "fomo",
       "method": "POST",
       "path": "/hodlers/friends",
-      "request": { "body": "object", "params": [{ "name": "tokens", "source": "body", "type": "array", "items": { "type": "object", "fields": { "tokenAddress": { "type": "string", "required": true }, "networkId": { "type": "number", "required": true } } }, "required": true, "rename": { "tokenAddress": "address" } }] },
-      "response": { "type": "FriendsHoldings", "description": "Which friends hold requested tokens." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "tokens",
+            "source": "body",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "fields": {
+                "tokenAddress": {
+                  "type": "string",
+                  "required": true
+                },
+                "networkId": {
+                  "type": "number",
+                  "required": true
+                }
+              }
+            },
+            "required": true,
+            "rename": {
+              "tokenAddress": "address"
+            }
+          }
+        ]
+      },
+      "response": {
+        "type": "FriendsHoldings",
+        "description": "Which friends hold requested tokens."
+      },
       "description": "Read friends' holdings. The wire adapter normalizes tokenAddress to upstream address.",
       "auth": "identity",
       "sideEffect": "none",
@@ -435,8 +1006,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/tokenAllowList/detailed",
-      "request": { "params": [] },
-      "response": { "type": "TokenAllowList", "description": "Detailed token allowlist." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "TokenAllowList",
+        "description": "Detailed token allowlist."
+      },
       "description": "Read the detailed token allowlist.",
       "auth": "identity",
       "sideEffect": "none",
@@ -449,10 +1025,65 @@
       "base": "mobula",
       "method": "GET",
       "path": "/api/2/token/ohlcv-history",
-      "request": { "params": [{ "name": "address", "source": "query", "type": "string", "required": true }, { "name": "chain", "source": "query", "input": "chain", "type": "string", "required": true, "wireName": "chainId" }, { "name": "period", "source": "query", "type": "string", "required": false, "default": "1m" }, { "name": "usd", "source": "query", "type": "string", "required": false, "default": "true" }] },
-      "response": { "type": "Ohlcv", "description": "OHLCV candle history." },
+      "request": {
+        "params": [
+          {
+            "name": "address",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "chain",
+            "source": "query",
+            "type": "string",
+            "required": true,
+            "wireName": "chainId",
+            "description": "Use solana or evm:<chain id>; the provider wire name is chainId."
+          },
+          {
+            "name": "period",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "1m"
+          },
+          {
+            "name": "usd",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "true"
+          },
+          {
+            "name": "from",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "description": "Optional start time in Unix milliseconds."
+          },
+          {
+            "name": "to",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "description": "Optional end time in Unix milliseconds."
+          },
+          {
+            "name": "amount",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "description": "Optional number of candles."
+          }
+        ]
+      },
+      "response": {
+        "type": "Ohlcv",
+        "description": "OHLCV candle history."
+      },
       "description": "Read OHLCV history from the FOMO Mobula base.",
-      "auth": "identity",
+      "auth": "access",
       "sideEffect": "none",
       "expose": true
     },
@@ -463,8 +1094,56 @@
       "base": "fomo",
       "method": "GET",
       "path": "/feed/token",
-      "request": { "params": [{ "name": "tokenAddress", "source": "query", "type": "string", "required": true }, { "name": "networkId", "source": "query", "type": "number", "required": true }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }, { "name": "threshold", "source": "query", "type": "number", "required": false, "default": 1000 }, { "name": "excludeThesis", "source": "query", "type": "boolean", "required": false, "default": true }] },
-      "response": { "type": "TokenFeed", "description": "Swap feed for a token." },
+      "request": {
+        "params": [
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 50
+          },
+          {
+            "name": "threshold",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 1000
+          },
+          {
+            "name": "excludeThesis",
+            "source": "query",
+            "type": "boolean",
+            "required": false,
+            "default": true
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous page."
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenFeed",
+        "description": "Swap feed for a token."
+      },
       "description": "Read a token feed.",
       "auth": "identity",
       "sideEffect": "none",
@@ -477,8 +1156,49 @@
       "base": "fomo",
       "method": "GET",
       "path": "/feed/token/thesis",
-      "request": { "params": [{ "name": "tokenAddress", "source": "query", "type": "string", "required": true }, { "name": "networkId", "source": "query", "type": "number", "required": true }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }, { "name": "threshold", "source": "query", "type": "number", "required": false, "default": 1000 }] },
-      "response": { "type": "TokenThesis", "description": "Thesis posts for a token." },
+      "request": {
+        "params": [
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 50
+          },
+          {
+            "name": "threshold",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 1000
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous page."
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenThesis",
+        "description": "Thesis posts for a token."
+      },
       "description": "Read thesis posts for a token.",
       "auth": "identity",
       "sideEffect": "none",
@@ -491,8 +1211,77 @@
       "base": "fomo",
       "method": "GET",
       "path": "/feed/token/sortedThesis",
-      "request": { "params": [{ "name": "tokenAddress", "source": "query", "type": "string", "required": true }, { "name": "networkId", "source": "query", "type": "number", "required": true }, { "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }, { "name": "threshold", "source": "query", "type": "number", "required": false, "default": 1000 }, { "name": "afterTime", "source": "query", "type": "number", "required": true, "description": "Inclusive lower bound as Unix epoch milliseconds." }, { "name": "beforeTime", "source": "query", "type": "number", "required": false, "description": "Exclusive upper bound as Unix epoch milliseconds." }] },
-      "response": { "type": "SortedTokenThesis", "description": "Time-paged thesis posts." },
+      "request": {
+        "params": [
+          {
+            "name": "tokenAddress",
+            "source": "query",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          {
+            "name": "threshold",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 1000
+          },
+          {
+            "name": "afterTime",
+            "source": "query",
+            "type": "number",
+            "required": true,
+            "description": "Inclusive lower bound as Unix epoch milliseconds."
+          },
+          {
+            "name": "beforeTime",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "description": "Exclusive upper bound as Unix epoch milliseconds."
+          },
+          {
+            "name": "userId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Optional user filter."
+          },
+          {
+            "name": "followingOnly",
+            "source": "query",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "name": "orderBy",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Production UI value: positionSize."
+          }
+        ]
+      },
+      "response": {
+        "type": "SortedTokenThesis",
+        "description": "Time-paged thesis posts."
+      },
       "description": "Read time-paged thesis posts.",
       "auth": "identity",
       "sideEffect": "none",
@@ -505,8 +1294,57 @@
       "base": "fomo",
       "method": "GET",
       "path": "/feed/tradingActivity",
-      "request": { "params": [{ "name": "limit", "source": "query", "type": "number", "required": false, "default": 50 }, { "name": "threshold", "source": "query", "type": "number", "required": false, "default": 1000 }] },
-      "response": { "type": "TradingActivity", "description": "Global trading activity feed." },
+      "request": {
+        "params": [
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Upstream maximum is 100."
+          },
+          {
+            "name": "threshold",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 1000
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous page."
+          },
+          {
+            "name": "minEquity",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "minimum": 0
+          },
+          {
+            "name": "minMarketCap",
+            "source": "query",
+            "type": "number",
+            "required": false
+          },
+          {
+            "name": "maxMarketCap",
+            "source": "query",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "TradingActivity",
+        "description": "Global trading activity feed."
+      },
       "description": "Read global trading activity.",
       "auth": "identity",
       "sideEffect": "none",
@@ -519,8 +1357,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/watchlist",
-      "request": { "params": [] },
-      "response": { "type": "Watchlist", "description": "Current watchlist; read-only." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "Watchlist",
+        "description": "Current watchlist; read-only."
+      },
       "description": "Read the current watchlist.",
       "auth": "identity",
       "sideEffect": "none",
@@ -533,8 +1376,27 @@
       "base": "fomo",
       "method": "POST",
       "path": "/watchlist",
-      "request": { "body": "object", "params": [{ "name": "networkId", "source": "body", "type": "number", "required": true }, { "name": "tokenAddress", "source": "body", "type": "string", "required": true }] },
-      "response": { "type": "WatchlistMutation", "description": "Account mutation; disabled by policy." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "networkId",
+            "source": "body",
+            "type": "number",
+            "required": true
+          },
+          {
+            "name": "tokenAddress",
+            "source": "body",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "WatchlistMutation",
+        "description": "Account mutation; disabled by policy."
+      },
       "description": "Reference endpoint only; disabled as an MCP tool.",
       "auth": "identity",
       "sideEffect": "mutation",
@@ -548,8 +1410,27 @@
       "base": "fomo",
       "method": "DELETE",
       "path": "/watchlist",
-      "request": { "body": "object", "params": [{ "name": "networkId", "source": "body", "type": "number", "required": true }, { "name": "tokenAddress", "source": "body", "type": "string", "required": true }] },
-      "response": { "type": "WatchlistMutation", "description": "Account mutation; disabled by policy." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "networkId",
+            "source": "body",
+            "type": "number",
+            "required": true
+          },
+          {
+            "name": "tokenAddress",
+            "source": "body",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "WatchlistMutation",
+        "description": "Account mutation; disabled by policy."
+      },
       "description": "Reference endpoint only; disabled as an MCP tool.",
       "auth": "identity",
       "sideEffect": "mutation",
@@ -563,8 +1444,20 @@
       "base": "fomo",
       "method": "GET",
       "path": "/v2/transfers/with/{userId}",
-      "request": { "params": [{ "name": "userId", "source": "path", "type": "string", "required": true }] },
-      "response": { "type": "Transfers", "description": "Transfer history with another user." },
+      "request": {
+        "params": [
+          {
+            "name": "userId",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "Transfers",
+        "description": "Transfer history with another user."
+      },
       "description": "Read transfers with another user.",
       "auth": "identity",
       "sideEffect": "none",
@@ -577,8 +1470,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/transfers/v2/supportedTokens",
-      "request": { "params": [] },
-      "response": { "type": "SupportedTransferTokens", "description": "Tokens supported by the transfer surface." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "SupportedTransferTokens",
+        "description": "Tokens supported by the transfer surface."
+      },
       "description": "Read supported transfer tokens; no transfer is performed.",
       "auth": "identity",
       "sideEffect": "none",
@@ -591,8 +1489,13 @@
       "base": "fomo",
       "method": "GET",
       "path": "/config",
-      "request": { "params": [] },
-      "response": { "type": "FomoConfig", "description": "Upstream application configuration." },
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "FomoConfig",
+        "description": "Upstream application configuration."
+      },
       "description": "Read application configuration.",
       "auth": "identity",
       "sideEffect": "none",
@@ -605,9 +1508,576 @@
       "base": "privy",
       "method": "POST",
       "path": "/api/v1/sessions",
-      "request": { "body": "object", "params": [{ "name": "refresh_token", "source": "body", "type": "string", "required": true }] },
-      "response": { "type": "PrivySession", "description": "Rotated Privy access and refresh tokens; does not mint an identity token." },
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "refresh_token",
+            "source": "body",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "PrivySession",
+        "description": "Rotated Privy access and refresh tokens; does not mint an identity token."
+      },
       "description": "Internal auth endpoint. Never exposed as an MCP tool.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": false,
+      "internalOnly": true
+    },
+    {
+      "id": "fomo_get_global_feed",
+      "tool": "fomo_get_global_feed",
+      "category": "feed",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/feed",
+      "request": {
+        "params": [
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 50,
+            "minimum": 1,
+            "maximum": 50
+          },
+          {
+            "name": "lastFeedId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous page."
+          },
+          {
+            "name": "feedTypes",
+            "source": "query",
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "string"
+            },
+            "serialize": "repeat",
+            "description": "One or more feed type values."
+          }
+        ]
+      },
+      "response": {
+        "type": "GlobalFeed",
+        "description": "Global social activity feed."
+      },
+      "description": "Read the global social activity feed.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_trending_tokens",
+      "tool": "fomo_trending_tokens",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/trendingTokens",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "TokenList",
+        "description": "Current trending token list."
+      },
+      "description": "Read the current trending token list.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_most_held_tokens",
+      "tool": "fomo_most_held_tokens",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/mostHeld",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "TokenList",
+        "description": "Current most-held token list."
+      },
+      "description": "Read the current most-held token list.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_graduated_tokens",
+      "tool": "fomo_graduated_tokens",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/graduatedTokens",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "TokenList",
+        "description": "Graduated token list."
+      },
+      "description": "Read graduated tokens.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_crypto_tokens",
+      "tool": "fomo_crypto_tokens",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/cryptoTokens",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "TokenList",
+        "description": "Crypto token list."
+      },
+      "description": "Read the current crypto token list.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_bars",
+      "tool": "fomo_get_bars",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/getBars",
+      "request": {
+        "params": [
+          {
+            "name": "from",
+            "source": "body",
+            "type": "number",
+            "required": true,
+            "description": "Start time in Unix seconds."
+          },
+          {
+            "name": "to",
+            "source": "body",
+            "type": "number",
+            "required": true,
+            "description": "End time in Unix seconds."
+          },
+          {
+            "name": "resolution",
+            "source": "body",
+            "type": "string",
+            "required": true,
+            "description": "TradingView resolution."
+          },
+          {
+            "name": "symbol",
+            "source": "body",
+            "type": "string",
+            "required": true,
+            "description": "Normalized chain and token symbol."
+          }
+        ],
+        "body": "object"
+      },
+      "response": {
+        "type": "Bars",
+        "description": "TradingView-compatible price bars."
+      },
+      "description": "Read chart bars using the production fallback route.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_bars_new",
+      "tool": "fomo_get_bars_new",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/getBarsNew",
+      "request": {
+        "params": [
+          {
+            "name": "to",
+            "source": "body",
+            "type": "number",
+            "required": true,
+            "description": "End time in Unix seconds."
+          },
+          {
+            "name": "countBack",
+            "source": "body",
+            "type": "number",
+            "required": true,
+            "description": "Number of bars requested."
+          },
+          {
+            "name": "resolution",
+            "source": "body",
+            "type": "string",
+            "required": true,
+            "description": "TradingView resolution."
+          },
+          {
+            "name": "symbol",
+            "source": "body",
+            "type": "string",
+            "required": true,
+            "description": "Normalized chain and token symbol."
+          },
+          {
+            "name": "from",
+            "source": "body",
+            "type": "number",
+            "required": true,
+            "description": "Start time in Unix seconds."
+          }
+        ],
+        "body": "object"
+      },
+      "response": {
+        "type": "Bars",
+        "description": "TradingView-compatible price bars."
+      },
+      "description": "Read chart bars using the current production route.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_following_leaderboard",
+      "tool": "fomo_get_following_leaderboard",
+      "category": "leaderboards",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/leaderboard/following",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "Leaderboard",
+        "description": "Leaderboard for the authenticated user's following graph."
+      },
+      "description": "Read the following leaderboard.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_clan_thesis",
+      "tool": "fomo_get_clan_thesis",
+      "category": "clans",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/clans/{id}/thesis",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 20,
+            "minimum": 1,
+            "maximum": 20
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanThesis",
+        "description": "Paginated clan thesis records."
+      },
+      "description": "Read clan thesis posts.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_pnl_equity_intervals",
+      "tool": "fomo_get_pnl_equity_intervals",
+      "category": "portfolio",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/userTokens/aggregatedSnapshot/interval",
+      "request": {
+        "params": [
+          {
+            "name": "userId",
+            "source": "query",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "PnlEquityIntervals",
+        "description": "Interval portfolio PnL and equity series."
+      },
+      "description": "Read all-time interval PnL and equity snapshots.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_current_user",
+      "tool": "fomo_get_current_user",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/current",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "User",
+        "description": "Authenticated current user profile."
+      },
+      "description": "Read the authenticated user's profile.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_followers",
+      "tool": "fomo_get_followers",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/followers",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "UserList",
+        "description": "Users following the requested user."
+      },
+      "description": "Read a user's followers.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_following_paginated",
+      "tool": "fomo_get_following_paginated",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/followingPaginate",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "UserList",
+        "description": "Cursor-paginated users followed by a user."
+      },
+      "description": "Read a user's following graph with a cursor.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_mutuals",
+      "tool": "fomo_get_mutuals",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/mutuals",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "lastId",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "UserList",
+        "description": "Mutual connections for a user."
+      },
+      "description": "Read mutual connections with a cursor.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_user_top_theses",
+      "tool": "fomo_get_user_top_theses",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/topTheses",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          }
+        ]
+      },
+      "response": {
+        "type": "UserThesis",
+        "description": "Top thesis for a user."
+      },
+      "description": "Read a user's top thesis.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_user_transfers",
+      "tool": "fomo_get_user_transfers",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/transfers",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "lastTransferId",
+            "source": "query",
+            "type": "string",
+            "required": false
+          }
+        ]
+      },
+      "response": {
+        "type": "Transfers",
+        "description": "Cursor-paginated user transfer history."
+      },
+      "description": "Read a user's transfer history.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_push_preferences",
+      "tool": "fomo_get_push_preferences",
+      "category": "account-read",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/pushToken/preferences",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "PushPreferences",
+        "description": "Current push notification preferences."
+      },
+      "description": "Read push notification preferences.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_mobula_pulse",
+      "tool": null,
+      "category": "tokens",
+      "base": "mobula",
+      "method": "POST",
+      "path": "/api/2/pulse",
+      "request": {
+        "body": "object",
+        "params": [
+          {
+            "name": "assetMode",
+            "source": "body",
+            "type": "boolean",
+            "required": true
+          },
+          {
+            "name": "views",
+            "source": "body",
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "object",
+              "fields": {
+                "name": {
+                  "type": "string",
+                  "required": true
+                },
+                "model": {
+                  "type": "string",
+                  "required": true
+                },
+                "chainId": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "required": true
+                }
+              }
+            }
+          }
+        ]
+      },
+      "response": {
+        "type": "MobulaPulse",
+        "description": "Mobula token market views."
+      },
+      "description": "Reference endpoint; disabled until the provider body contract is verified.",
       "auth": "access",
       "sideEffect": "none",
       "expose": false,

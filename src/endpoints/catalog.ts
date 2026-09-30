@@ -5,7 +5,12 @@ import { EndpointNotAllowedError } from "../errors.js";
 function fieldSchema(field: EndpointParam | NonNullable<EndpointParam["items"]>): z.ZodType {
   switch (field.type) {
     case "string": return z.string();
-    case "number": return z.number();
+    case "number": {
+      let schema = z.number();
+      if (field.minimum !== undefined) schema = schema.min(field.minimum);
+      if (field.maximum !== undefined) schema = schema.max(field.maximum);
+      return schema;
+    }
     case "boolean": return z.boolean();
     case "array": return z.array(field.items ? fieldSchema(field.items) : z.unknown());
     case "object": {
@@ -81,6 +86,12 @@ export interface BuiltRequest {
 }
 
 export function buildRequest(endpoint: EndpointConfig, args: Record<string, unknown>): BuiltRequest {
+  if (endpoint.request.atLeastOneOf?.length && !endpoint.request.atLeastOneOf.some((name) => {
+    const value = args[name] ?? endpoint.request.params.find((parameter) => parameter.name === name)?.default;
+    return typeof value === "string" ? value.trim().length > 0 : value !== undefined && value !== null;
+  })) {
+    throw new Error(`Provide at least one non-empty parameter: ${endpoint.request.atLeastOneOf.join(", ")}`);
+  }
   const path = applyPath(endpoint.path, endpoint, args);
   const query: Record<string, string | number | boolean | string[] | undefined> = {};
   const bodyFields: Record<string, unknown> = {};
