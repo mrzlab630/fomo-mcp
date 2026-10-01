@@ -58,6 +58,15 @@ the local daemon directly when the MCP tools are available.
   or phrase and no stable id/address.
 - Use a detail tool only after a search result provides the required id or
   address.
+- For clan analysis, call `fomo_get_clan` with the clan id and the requested
+  upstream window first. Its response may include aggregate PnL, rank,
+  tradeCount, memberCount, topTokens and a `members` snapshot; each member can
+  include an embedded user profile, role and member PnL. The member array is
+  provider data, has no documented cursor on this route, and must not be
+  assumed complete without comparing its length with `memberCount`.
+- Treat all fields inside `fomo_get_clan` data as upstream FOMO values. If an
+  agent computes rankings, averages or other derived metrics from members,
+  label those results as derived data and preserve the requested window.
 
 ## Failure handling
 
@@ -105,6 +114,10 @@ diff. Do not report that as proof of no endpoint changes.
 2. Read `unmappedRoutes`, `catalogOnly`, and `changes`. Open only the referenced
    public asset URLs needed to inspect each change. A missing string is not
    proof of deprecation; a changed SHA-256 hash signals possible contract drift.
+   Treat `catalogOnly` as review evidence, not a deprecated status. Mark a
+   route obsolete only after a reviewed source contract or authorized probe
+   confirms removal. Keep active routes with stale provider data documented as
+   freshness limitations instead of deprecating them.
 3. Verify method, base, auth, parameters, wire names, cursors and side effects.
    Edit existing schemas in `config/endpoints.json`. Put approved new complete
    read-only records in its optional `discoveryCandidates` array, then run

@@ -191,3 +191,21 @@ test("generated API reference documents every catalog id and parameter", async (
   }
   assert.equal(sections.size, catalog.endpoints.length);
 });
+
+test("catalog records are complete and disabled routes explain their lifecycle state", async () => {
+  const docs = await readFile(new URL("../docs/API.md", import.meta.url), "utf8");
+  const seenIds = new Set();
+  const seenRoutes = new Set();
+  for (const item of catalog.endpoints) {
+    assert.ok(item.id && item.category && item.base && item.method && item.path, `missing route identity: ${item.id ?? "<unknown>"}`);
+    assert.ok(item.description, `missing endpoint description: ${item.id}`);
+    assert.ok(item.response?.type && item.response?.description, `missing response description: ${item.id}`);
+    assert.ok(item.auth && item.sideEffect && typeof item.expose === "boolean", `missing policy metadata: ${item.id}`);
+    assert.equal(seenIds.has(item.id), false, `duplicate endpoint id: ${item.id}`);
+    assert.equal(seenRoutes.has(`${item.base}:${item.method}:${item.path}`), false, `duplicate endpoint route: ${item.id}`);
+    seenIds.add(item.id);
+    seenRoutes.add(`${item.base}:${item.method}:${item.path}`);
+    assert.match(docs, new RegExp(`### ${item.id}\\n`));
+    if (!item.expose) assert.match(item.description, /disabled|internal|mutation|excluded|pending/i, `disabled endpoint needs a reason: ${item.id}`);
+  }
+});

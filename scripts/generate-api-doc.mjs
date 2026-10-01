@@ -103,6 +103,8 @@ const lines = [
   "",
   "The catalog contains private, reverse-engineered routes. A route appearing here is not proof that it is stable or authorized for every account. Live readiness requires the non-expired token selected by each endpoint's auth field, followed by a successful read-only request. Enabled FOMO routes and Mobula OHLCV use the identity token; Privy session operations use the access/refresh pair internally.",
   "",
+  "The catalog is the single endpoint map: every record, including disabled and internal references, is listed in this document. A route is not marked deprecated merely because the current frontend bundle does not reference it; `catalogOnly` discovery results require a reviewed source contract or an authorized probe before deprecation. `fomo_trading_activity` is active upstream but may return stale events, which is a freshness limitation rather than a deprecated route.",
+  "",
   "Response type names describe observed payload purposes, not validated upstream JSON schemas. Only the envelope is checked by the adapter. Do not assume undocumented response fields. Time units are specified per parameter; chart bars use Unix seconds, while sorted thesis and Mobula OHLCV use Unix milliseconds.",
   "",
   "FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.",

@@ -14,7 +14,7 @@
     "respectRetryAfter": true,
     "origin": "https://fomo.family",
     "referer": "https://fomo.family/",
-    "userAgent": "fomo-mcp/0.1.0"
+    "userAgent": "fomo-mcp/0.1.1"
   },
   "transport": {
     "mode": "hybrid",
@@ -44,7 +44,7 @@
   },
   "mcp": {
     "name": "fomo-mcp",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "includeMutationTools": false,
     "includeInternalEndpoints": false
   },

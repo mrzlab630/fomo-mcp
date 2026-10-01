@@ -440,15 +440,16 @@
             "name": "window",
             "source": "query",
             "type": "string",
-            "required": false
+            "required": false,
+            "description": "Optional upstream reporting window, for example 7d; accepted values are provider-defined for this route."
           }
         ]
       },
       "response": {
         "type": "Clan",
-        "description": "Clan details."
+        "description": "Clan snapshot for the selected window. Observed payloads include aggregate rank, PnL, tradeCount, memberCount and topTokens, plus members containing an embedded User profile, role and member PnL. This route has no documented member pagination parameter; treat members as an upstream snapshot and compare its length with memberCount."
       },
-      "description": "Read clan details.",
+      "description": "Read clan details and the member/PnL snapshot returned by FOMO.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true

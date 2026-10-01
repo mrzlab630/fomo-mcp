@@ -22,6 +22,8 @@ The [disabled and internal records table](docs/API.md#disabled-and-internal-reco
 
 The endpoint map is a reverse-engineered reference, not an official FOMO API contract. Its provenance is recorded in `config/endpoints.json`; each route must be verified against an authorized source before production collection.
 
+`config/endpoints.json` is the single endpoint map and [docs/API.md](docs/API.md) is generated from it. The catalog currently has no endpoint confirmed as deprecated: a route absent from the current frontend bundle is recorded as `catalogOnly` evidence, not automatically marked obsolete. Disabled and internal records carry an explicit exclusion reason. `fomo_trading_activity` is active upstream but may return stale events; that is a freshness limitation, not endpoint deprecation.
+
 ## Agent documentation
 
 - [AI agent rules](AGENTS.md): sources of truth, read-only boundaries, auth gates, proof, and Git rules.
@@ -43,7 +45,7 @@ Use `fomo_get_users_batch` to retrieve multiple profiles in one request using re
 
 Every data tool returns `{ data, meta }`. `data` contains the upstream payload after only transport-envelope unwrapping; MCP does not normalize or add business metrics. `meta.provenance.data` is `upstream`, while `meta.provenance.metadata` is `mcp_generated`. Scope and freshness fields are MCP metadata and must not be presented as fields returned by FOMO.
 
-Time bounds for `fomo_token_sorted_thesis` use Unix epoch milliseconds; `afterTime` is required by the upstream API. Clan feeds require at least one supported `feedTypes` value and send it as a repeated query field.
+Time bounds for `fomo_token_sorted_thesis` use Unix epoch milliseconds; `afterTime` is required by the upstream API. Clan feeds require at least one supported `feedTypes` value and send it as a repeated query field. `fomo_get_clan` can return a windowed clan snapshot with aggregate rank/PnL, trade count, top tokens, and an embedded `members` array containing user profiles, roles and member PnL. The route has no documented member cursor; compare `members.length` with the upstream `memberCount` before treating the snapshot as complete. Any rankings or aggregates calculated from that array are MCP-agent derived data.
 
 The global feed accepts upstream `limit` values from 1 through 100. A pinned `manual` announcement can add one record beyond the requested limit. The feed has no `afterTime` or `beforeTime`; use `lastFeedId`, deduplicate by event id, and exclude pinned items before calculating time-window counts. `fomo_trading_activity` is still exposed because its upstream route is active, but its events may be stale and it has no time-bound filter; treat its timestamps as provider data.
 
