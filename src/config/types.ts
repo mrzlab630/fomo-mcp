@@ -4,6 +4,7 @@ export type AuthMode = "none" | "identity" | "access";
 export type SideEffect = "none" | "mutation";
 export type ParamSource = "path" | "query" | "body";
 export type ParamType = "string" | "number" | "boolean" | "array" | "object";
+export type EndpointScope = "single-token" | "requested-token-set" | "provider-wide-verified-list";
 
 export interface EndpointField {
   type: ParamType;
@@ -38,6 +39,11 @@ export interface EndpointResponse {
   description: string;
 }
 
+/** Metadata declared by MCP to describe the scope of an upstream payload. */
+export interface EndpointMcpMetadata {
+  scope: EndpointScope;
+}
+
 export interface EndpointConfig {
   id: string;
   tool: string | null;
@@ -48,6 +54,7 @@ export interface EndpointConfig {
   pathOverrides?: Record<string, string>;
   request: EndpointRequest;
   response: EndpointResponse;
+  mcpMetadata?: EndpointMcpMetadata;
   description: string;
   auth: AuthMode;
   sideEffect: SideEffect;

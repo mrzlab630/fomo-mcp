@@ -11,6 +11,7 @@ import * as ts from "typescript";
 import { z } from "zod/v4";
 import { applyDiscoveryCandidates, canonicalPath, discoverEndpointMap, extractRouteReferences, readDiscoveryReport, saveEndpointMap, writeDiscoveryReport } from "../dist/endpoint-discovery.js";
 import { assertReadOnly, buildRequest, exposedEndpoints, inputSchema } from "../dist/endpoints/catalog.js";
+import { EndpointInvoker } from "../dist/endpoints/invoker.js";
 
 const catalog = JSON.parse(await readFile(new URL("../config/endpoints.json", import.meta.url), "utf8"));
 const runtime = JSON.parse(await readFile(new URL("../config/runtime.json", import.meta.url), "utf8"));
@@ -48,14 +49,47 @@ test("catalog contracts build correct cursor, auth and wire values", () => {
   assert.deepEqual(buildRequest(endpoint("fomo_get_user_swaps"), { id: "user/id", lastSwapIdV2: "cursor" }), { path: "/v2/users/user%2Fid/swaps", query: { lastSwapIdV2: "cursor" } });
   assert.equal(buildRequest(endpoint("fomo_get_leaderboard"), { window: "all" }).path, "/v2/leaderboard");
   assert.equal(buildRequest(endpoint("fomo_ohlcv"), { address: "mint", chain: "solana", from: 1, to: 2 }).query.chainId, "solana");
-  assert.equal(endpoint("fomo_ohlcv").auth, "access");
+  assert.equal(endpoint("fomo_ohlcv").auth, "identity");
   assert.deepEqual(buildRequest(endpoint("fomo_top_holders"), { tokens: [{ tokenAddress: "mint", networkId: 1 }] }).query.tokens, '[{"networkId":1,"address":"mint"}]');
-  assert.deepEqual(buildRequest(endpoint("fomo_filter_tokens"), { tokenIds: ["solana:mint"] }).body, ["solana:mint"]);
+  assert.deepEqual(buildRequest(endpoint("fomo_filter_tokens"), { tokenIds: ["mint:1399811149"] }).body, ["mint:1399811149"]);
+  assert.deepEqual(buildRequest(endpoint("fomo_get_users_batch"), { userIds: ["first/id", "second&id"] }), { path: "/v2/users", query: { userIds: ["first/id", "second&id"] } });
+  assert.throws(() => buildRequest(endpoint("fomo_get_users_batch"), {}), /userIds/);
+  assert.equal(endpoint("fomo_get_users_batch").method, "GET");
+  assert.deepEqual(buildRequest(endpoint("fomo_get_relay_fee_balance"), {}), { path: "/proxy/relay/appFees", query: {} });
+  assert.equal(endpoint("fomo_get_relay_fee_balance").method, "GET");
   const schema = z.object(inputSchema(endpoint("fomo_trading_activity")));
   assert.equal(schema.safeParse({ limit: 100 }).success, true);
   assert.equal(schema.safeParse({ limit: 101 }).success, false);
+  const globalFeedSchema = z.object(inputSchema(endpoint("fomo_get_global_feed")));
+  assert.equal(globalFeedSchema.safeParse({ limit: 100, feedTypes: ["large_buy"] }).success, true);
+  assert.equal(globalFeedSchema.safeParse({ limit: 101, feedTypes: ["large_buy"] }).success, false);
   for (const item of catalog.endpoints.filter((item) => item.sideEffect === "mutation")) assert.throws(() => assertReadOnly(item));
   assert.equal(exposedEndpoints(catalog.endpoints, false, false).some((item) => item.id === "fomo_mobula_pulse"), false);
+});
+
+test("response metadata distinguishes upstream data from MCP interpretation", async () => {
+  const transport = {
+    request: async () => ({
+      status: 200,
+      url: "https://prod-api.fomo.family/proxy/filterTokens",
+      requestId: "test-request",
+      body: JSON.stringify({ responseObject: [{ tokenAddress: "mint", marketCap: 10 }] }),
+      headers: new Headers({ date: "Thu, 01 Oct 2026 05:00:00 GMT", age: "12" }),
+      attempts: 1,
+    }),
+  };
+  const result = await new EndpointInvoker(runtime, transport).invoke(endpoint("fomo_filter_tokens"), { tokenIds: ["mint:1399811149"] });
+  assert.deepEqual(result.data, [{ tokenAddress: "mint", marketCap: 10 }]);
+  assert.deepEqual(result.meta.provenance, { data: "upstream", metadata: "mcp_generated" });
+  assert.deepEqual(result.meta.scope, { value: "requested-token-set", source: "mcp_catalog" });
+  assert.deepEqual(result.meta.freshness, {
+    basis: "provider-reported",
+    observedAt: result.meta.fetchedAt,
+    providerReportedAt: "2026-10-01T05:00:00.000Z",
+    cacheAgeSeconds: 12,
+  });
+  assert.equal(endpoint("fomo_token_details").mcpMetadata.scope, "single-token");
+  assert.equal(endpoint("fomo_verified_tokens").mcpMetadata.scope, "provider-wide-verified-list");
 });
 
 test("discovery compares evidence and only applies reviewed read-only candidates", async (t) => {

@@ -1,10 +1,10 @@
 {
-  "version": 2,
+  "version": 3,
   "source": {
     "repository": "https://github.com/ColinEdw/fomo-mcp",
     "commit": "e97d14a194a65ec74cc420ba2af3a6956631e48f",
     "status": "reverse-engineered reference; refreshed from production frontend; verify before live use",
-    "discoveredAt": "2026-09-30T13:37:49.680Z",
+    "discoveredAt": "2026-09-30T14:33:25.227Z",
     "discoveryUrl": "https://fomo.family/",
     "discoveryManifest": "86d0b4f8"
   },
@@ -724,7 +724,7 @@
         "type": "SwapQuote",
         "description": "Quote only; execution is intentionally excluded."
       },
-      "description": "Reference endpoint only; disabled as an MCP tool.",
+      "description": "Disabled by the analytics-only MCP scope: swap preparation is excluded even though this quote reference is marked sideEffect: none. No signing or swap execution is exposed; this is a policy exclusion, not evidence of route removal.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": false,
@@ -748,13 +748,17 @@
               "type": "string"
             },
             "required": true,
-            "bodyMode": "direct"
+            "bodyMode": "direct",
+            "description": "Token ids in <tokenAddress>:<numeric networkId> form, using the address and networkId from a token response. This is not a solana:<address> identifier."
           }
         ]
       },
       "response": {
         "type": "TokenMarketData[]",
         "description": "Market data for requested token ids."
+      },
+      "mcpMetadata": {
+        "scope": "requested-token-set"
       },
       "description": "Read market data for a list of token ids.",
       "auth": "identity",
@@ -814,13 +818,17 @@
             "name": "tokenId",
             "source": "body",
             "type": "string",
-            "required": true
+            "required": true,
+            "description": "Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149."
           }
         ]
       },
       "response": {
         "type": "TokenDetails",
         "description": "Token volumes, counts and holder metadata."
+      },
+      "mcpMetadata": {
+        "scope": "single-token"
       },
       "description": "Read detailed token information.",
       "auth": "identity",
@@ -875,6 +883,9 @@
       "response": {
         "type": "VerifiedTokens",
         "description": "Verified token list."
+      },
+      "mcpMetadata": {
+        "scope": "provider-wide-verified-list"
       },
       "description": "Read verified tokens.",
       "auth": "identity",
@@ -1083,7 +1094,7 @@
         "description": "OHLCV candle history."
       },
       "description": "Read OHLCV history from the FOMO Mobula base.",
-      "auth": "access",
+      "auth": "identity",
       "sideEffect": "none",
       "expose": true
     },
@@ -1343,9 +1354,9 @@
       },
       "response": {
         "type": "TradingActivity",
-        "description": "Global trading activity feed."
+        "description": "Global trading activity feed. Upstream does not expose a time-bound parameter and may return stale or historical events; timestamps and freshness remain provider data."
       },
-      "description": "Read global trading activity.",
+      "description": "Read global trading activity. The upstream route remains active, but its event freshness is not guaranteed; do not treat this response as a complete current-period market ranking.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true
@@ -1397,7 +1408,7 @@
         "type": "WatchlistMutation",
         "description": "Account mutation; disabled by policy."
       },
-      "description": "Reference endpoint only; disabled as an MCP tool.",
+      "description": "Disabled because POST /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available.",
       "auth": "identity",
       "sideEffect": "mutation",
       "expose": false,
@@ -1431,7 +1442,7 @@
         "type": "WatchlistMutation",
         "description": "Account mutation; disabled by policy."
       },
-      "description": "Reference endpoint only; disabled as an MCP tool.",
+      "description": "Disabled because DELETE /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available.",
       "auth": "identity",
       "sideEffect": "mutation",
       "expose": false,
@@ -1523,7 +1534,7 @@
         "type": "PrivySession",
         "description": "Rotated Privy access and refresh tokens; does not mint an identity token."
       },
-      "description": "Internal auth endpoint. Never exposed as an MCP tool.",
+      "description": "Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh.",
       "auth": "access",
       "sideEffect": "none",
       "expose": false,
@@ -1545,7 +1556,8 @@
             "required": false,
             "default": 50,
             "minimum": 1,
-            "maximum": 50
+            "maximum": 100,
+            "description": "Upstream maximum is 100. A pinned manual item may make the response contain one more record than requested."
           },
           {
             "name": "lastFeedId",
@@ -1569,9 +1581,9 @@
       },
       "response": {
         "type": "GlobalFeed",
-        "description": "Global social activity feed."
+        "description": "Global social activity feed. Upstream has no afterTime or beforeTime filter; use lastFeedId for pagination and exclude pinned items before counting requested event types."
       },
-      "description": "Read the global social activity feed.",
+      "description": "Read the global social activity feed. Upstream accepts limit values through 100; pinned manual items may make a page exceed the requested count. Use lastFeedId and deduplicate by id for time windows.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true
@@ -1687,7 +1699,7 @@
             "source": "body",
             "type": "string",
             "required": true,
-            "description": "Normalized chain and token symbol."
+            "description": "Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149."
           }
         ],
         "body": "object"
@@ -1736,7 +1748,7 @@
             "source": "body",
             "type": "string",
             "required": true,
-            "description": "Normalized chain and token symbol."
+            "description": "Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149."
           },
           {
             "name": "from",
@@ -2077,11 +2089,62 @@
         "type": "MobulaPulse",
         "description": "Mobula token market views."
       },
-      "description": "Reference endpoint; disabled until the provider body contract is verified.",
+      "description": "Disabled pending verification of the provider views/model names, chainId values, access-token requirements and response contract. Frontend route evidence alone does not prove a usable read-only contract; keep disabled until an authorized provider probe verifies it.",
       "auth": "access",
       "sideEffect": "none",
       "expose": false,
       "internalOnly": true
+    },
+    {
+      "id": "fomo_get_users_batch",
+      "tool": "fomo_get_users_batch",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users",
+      "request": {
+        "params": [
+          {
+            "name": "userIds",
+            "source": "query",
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "string"
+            },
+            "serialize": "repeat",
+            "description": "User ids from a search, leaderboard or profile response; send at least one id as repeated userIds query fields. Only GET is supported; POST on this path registers an account and is excluded."
+          }
+        ]
+      },
+      "response": {
+        "type": "UsersBatch",
+        "description": "An object containing a users array for the requested ids."
+      },
+      "description": "Read several user profiles in one request using repeated userIds query fields. Does not register or edit users.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_relay_fee_balance",
+      "tool": "fomo_get_relay_fee_balance",
+      "category": "account-read",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/proxy/relay/appFees",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "RelayFeeBalance",
+        "description": "An object containing the authenticated account's relay fee balance; units are determined by the upstream response."
+      },
+      "description": "Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
     }
-  ]
+  ],
+  "discoveryCandidates": []
 }

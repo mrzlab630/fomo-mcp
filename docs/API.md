@@ -2,20 +2,22 @@
 
 > Generated from `config/endpoints.json` by `npm run docs:api`. Keep the catalog as the source of truth; edit this file only through the generator.
 
-- Catalog version: `2`
-- Records: **61**
-- Exposed read-only records: **56**
+- Catalog version: `3`
+- Records: **63**
+- Exposed read-only records: **58**
 - Disabled/internal references: **5**
 - Source status: reverse-engineered reference; refreshed from production frontend; verify before live use
-- Production evidence: https://fomo.family/; manifest `86d0b4f8`; collected 2026-09-30T13:37:49.680Z.
+- Production evidence: https://fomo.family/; manifest `86d0b4f8`; collected 2026-09-30T14:33:25.227Z.
 
 ## Contract and usage
 
-Every registered data tool accepts top-level fields shown below and returns `{ data, meta }`. `meta` includes the catalog id, source base, HTTP status, request id, retry attempts, fetch time, and response type. Parameter names are the MCP names; the adapter applies path encoding, query serialization, body construction, and wire-name conversions.
+Every registered data tool accepts top-level fields shown below and returns `{ data, meta }`. `data` is the upstream payload after only envelope unwrapping; MCP does not normalize or invent its business fields. `meta` is MCP-generated and includes the catalog id, source base, HTTP status, request id, retry attempts, fetch time, response type, provenance, scope and freshness metadata. `meta.provenance.data` identifies the payload as upstream, while `meta.provenance.metadata` identifies the envelope as MCP-generated. `meta.scope` comes from the MCP catalog. `meta.freshness` uses provider date headers when available and otherwise reports only the MCP observation time. Parameter names are the MCP names; the adapter applies path encoding, query serialization, body construction, and wire-name conversions.
 
-The catalog contains private, reverse-engineered routes. A route appearing here is not proof that it is stable or authorized for every account. Live readiness requires a non-expired identity token for FOMO routes or an access token for Mobula routes, followed by a successful read-only request.
+The catalog contains private, reverse-engineered routes. A route appearing here is not proof that it is stable or authorized for every account. Live readiness requires the non-expired token selected by each endpoint's auth field, followed by a successful read-only request. Enabled FOMO routes and Mobula OHLCV use the identity token; Privy session operations use the access/refresh pair internally.
 
 Response type names describe observed payload purposes, not validated upstream JSON schemas. Only the envelope is checked by the adapter. Do not assume undocumented response fields. Time units are specified per parameter; chart bars use Unix seconds, while sorted thesis and Mobula OHLCV use Unix milliseconds.
+
+FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.
 
 Use the final item or the cursor provided by the actual response when fetching another page. Stop when the page is empty, the cursor repeats, or the requested time boundary is reached. A current trending list does not represent seven-day activity: combine it with the 7d user leaderboard, paginated swaps, and timestamp-filtered thesis.
 
@@ -86,6 +88,20 @@ For the normal request and reauthorization sequence, read [AI agent workflow](AG
 | [fomo_get_user_transfers](#fomo_get_user_transfers) | GET | `/v2/users/{id}/transfers` | exposed |
 | [fomo_get_push_preferences](#fomo_get_push_preferences) | GET | `/v2/users/pushToken/preferences` | exposed |
 | [fomo_mobula_pulse](#fomo_mobula_pulse) | POST | `/api/2/pulse` | disabled/internal |
+| [fomo_get_users_batch](#fomo_get_users_batch) | GET | `/v2/users` | exposed |
+| [fomo_get_relay_fee_balance](#fomo_get_relay_fee_balance) | GET | `/proxy/relay/appFees` | exposed |
+
+## Disabled and internal records
+
+These records are retained for reference and are not registered as MCP data tools. Their exclusions are independent of authentication expiry and are not evidence that the upstream routes have been removed. Privy refresh remains available internally to AuthManager.
+
+| Catalog id | Reason for exclusion |
+| --- | --- |
+| [fomo_request_swap_quote](#fomo_request_swap_quote) | Disabled by the analytics-only MCP scope: swap preparation is excluded even though this quote reference is marked sideEffect: none. No signing or swap execution is exposed; this is a policy exclusion, not evidence of route removal. |
+| [fomo_add_watchlist](#fomo_add_watchlist) | Disabled because POST /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available. |
+| [fomo_remove_watchlist](#fomo_remove_watchlist) | Disabled because DELETE /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available. |
+| [privy_refresh_session](#privy_refresh_session) | Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh. |
+| [fomo_mobula_pulse](#fomo_mobula_pulse) | Disabled pending verification of the provider views/model names, chainId values, access-token requirements and response contract. Frontend route evidence alone does not prove a usable read-only contract; keep disabled until an authorized provider probe verifies it. |
 
 ## Endpoint reference
 
@@ -369,6 +385,28 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 ```json
 {
   "id": "<id>"
+}
+```
+
+### fomo_get_users_batch
+
+- MCP tool: `fomo_get_users_batch`
+- State: **exposed read-only**
+- Upstream: `GET https://prod-api.fomo.family/v2/users` (base: `fomo`; auth: `identity`)
+- Description: Read several user profiles in one request using repeated userIds query fields. Does not register or edit users.
+- Response: `UsersBatch`: An object containing a users array for the requested ids.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `userIds` | query | `array<string>` | yes | same | none; User ids from a search, leaderboard or profile response; send at least one id as repeated userIds query fields. Only GET is supported; POST on this path registers an account and is excluded. Serialization: repeat. |
+
+MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
+
+```json
+{
+  "userIds": [
+    "<userIds>"
+  ]
 }
 ```
 
@@ -736,7 +774,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: not registered (reference name: `fomo_request_swap_quote`)
 - State: **catalog reference / disabled**
 - Upstream: `POST https://prod-api.fomo.family/swaps/v2` (base: `fomo`; auth: `identity`); body mode: `object`
-- Description: Reference endpoint only; disabled as an MCP tool.
+- Description: Disabled by the analytics-only MCP scope: swap preparation is excluded even though this quote reference is marked sideEffect: none. No signing or swap execution is exposed; this is a policy exclusion, not evidence of route removal.
 - Response: `SwapQuote`: Quote only; execution is intentionally excluded.
 
 | Input | Location | Type | Required | Wire name | Default / description |
@@ -755,17 +793,18 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - Upstream: `POST https://prod-api.fomo.family/proxy/filterTokens` (base: `fomo`; auth: `identity`); body mode: `tokenIds`
 - Description: Read market data for a list of token ids.
 - Response: `TokenMarketData[]`: Market data for requested token ids.
+- MCP-generated interpretation (not an upstream field): scope = `requested-token-set`.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `tokenIds` | body | `array<string>` | yes | same | none; Sent as the complete request body. |
+| `tokenIds` | body | `array<string>` | yes | same | none; Token ids in <tokenAddress>:<numeric networkId> form, using the address and networkId from a token response. This is not a solana:<address> identifier. Sent as the complete request body. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
 ```json
 {
   "tokenIds": [
-    "<tokenIds>"
+    "<tokenAddress>:1399811149"
   ]
 }
 ```
@@ -799,16 +838,17 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - Upstream: `POST https://prod-api.fomo.family/proxy/tokenDetails` (base: `fomo`; auth: `identity`); body mode: `object`
 - Description: Read detailed token information.
 - Response: `TokenDetails`: Token volumes, counts and holder metadata.
+- MCP-generated interpretation (not an upstream field): scope = `single-token`.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `tokenId` | body | `string` | yes | same | none |
+| `tokenId` | body | `string` | yes | same | none; Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
 ```json
 {
-  "tokenId": "<tokenId>"
+  "tokenId": "<tokenAddress>:1399811149"
 }
 ```
 
@@ -841,6 +881,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - Upstream: `GET https://prod-api.fomo.family/proxy/verifiedTokens` (base: `fomo`; auth: `identity`)
 - Description: Read verified tokens.
 - Response: `VerifiedTokens`: Verified token list.
+- MCP-generated interpretation (not an upstream field): scope = `provider-wide-verified-list`.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
@@ -946,7 +987,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 - MCP tool: `fomo_ohlcv`
 - State: **exposed read-only**
-- Upstream: `GET https://mobula-api.fomo.family/api/2/token/ohlcv-history` (base: `mobula`; auth: `access`)
+- Upstream: `GET https://mobula-api.fomo.family/api/2/token/ohlcv-history` (base: `mobula`; auth: `identity`)
 - Description: Read OHLCV history from the FOMO Mobula base.
 - Response: `Ohlcv`: OHLCV candle history.
 
@@ -1056,7 +1097,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 | `from` | body | `number` | yes | same | none; Start time in Unix seconds. |
 | `to` | body | `number` | yes | same | none; End time in Unix seconds. |
 | `resolution` | body | `string` | yes | same | none; TradingView resolution. |
-| `symbol` | body | `string` | yes | same | none; Normalized chain and token symbol. |
+| `symbol` | body | `string` | yes | same | none; Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -1065,7 +1106,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
   "from": 1790121600,
   "to": 1790726400,
   "resolution": "60",
-  "symbol": "<symbol>"
+  "symbol": "<tokenAddress>:1399811149"
 }
 ```
 
@@ -1082,7 +1123,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 | `to` | body | `number` | yes | same | none; End time in Unix seconds. |
 | `countBack` | body | `number` | yes | same | none; Number of bars requested. |
 | `resolution` | body | `string` | yes | same | none; TradingView resolution. |
-| `symbol` | body | `string` | yes | same | none; Normalized chain and token symbol. |
+| `symbol` | body | `string` | yes | same | none; Token address followed by its numeric network id: <tokenAddress>:<networkId>. For Solana use <tokenAddress>:1399811149. |
 | `from` | body | `number` | yes | same | none; Start time in Unix seconds. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
@@ -1092,7 +1133,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
   "to": 1790726400,
   "countBack": 1,
   "resolution": "60",
-  "symbol": "<symbol>",
+  "symbol": "<tokenAddress>:1399811149",
   "from": 1790121600
 }
 ```
@@ -1102,7 +1143,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: not registered
 - State: **catalog reference / disabled**
 - Upstream: `POST https://mobula-api.fomo.family/api/2/pulse` (base: `mobula`; auth: `access`); body mode: `object`
-- Description: Reference endpoint; disabled until the provider body contract is verified.
+- Description: Disabled pending verification of the provider views/model names, chainId values, access-token requirements and response contract. Frontend route evidence alone does not prove a usable read-only contract; keep disabled until an authorized provider probe verifies it.
 - Response: `MobulaPulse`: Mobula token market views.
 
 | Input | Location | Type | Required | Wire name | Default / description |
@@ -1206,8 +1247,8 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: `fomo_trading_activity`
 - State: **exposed read-only**
 - Upstream: `GET https://prod-api.fomo.family/feed/tradingActivity` (base: `fomo`; auth: `identity`)
-- Description: Read global trading activity.
-- Response: `TradingActivity`: Global trading activity feed.
+- Description: Read global trading activity. The upstream route remains active, but its event freshness is not guaranteed; do not treat this response as a complete current-period market ranking.
+- Response: `TradingActivity`: Global trading activity feed. Upstream does not expose a time-bound parameter and may return stale or historical events; timestamps and freshness remain provider data.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
@@ -1232,12 +1273,12 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: `fomo_get_global_feed`
 - State: **exposed read-only**
 - Upstream: `GET https://prod-api.fomo.family/feed` (base: `fomo`; auth: `identity`)
-- Description: Read the global social activity feed.
-- Response: `GlobalFeed`: Global social activity feed.
+- Description: Read the global social activity feed. Upstream accepts limit values through 100; pinned manual items may make a page exceed the requested count. Use lastFeedId and deduplicate by id for time windows.
+- Response: `GlobalFeed`: Global social activity feed. Upstream has no afterTime or beforeTime filter; use lastFeedId for pagination and exclude pinned items before counting requested event types.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `limit` | query | `number >= 1 <= 50` | no | same | `50` |
+| `limit` | query | `number >= 1 <= 100` | no | same | `50`; Upstream maximum is 100. A pinned manual item may make the response contain one more record than requested. |
 | `lastFeedId` | query | `string` | no | same | none; Cursor returned by the previous page. |
 | `feedTypes` | query | `array<string>` | yes | same | none; One or more feed type values. Serialization: repeat. |
 
@@ -1328,6 +1369,24 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 {}
 ```
 
+### fomo_get_relay_fee_balance
+
+- MCP tool: `fomo_get_relay_fee_balance`
+- State: **exposed read-only**
+- Upstream: `GET https://prod-api.fomo.family/proxy/relay/appFees` (base: `fomo`; auth: `identity`)
+- Description: Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.
+- Response: `RelayFeeBalance`: An object containing the authenticated account's relay fee balance; units are determined by the upstream response.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| No parameters | - | - | - | - | - |
+
+MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
+
+```json
+{}
+```
+
 ## account-mutation
 
 ### fomo_add_watchlist
@@ -1335,7 +1394,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: not registered (reference name: `fomo_add_watchlist`)
 - State: **catalog reference / disabled**
 - Upstream: `POST https://prod-api.fomo.family/watchlist` (base: `fomo`; auth: `identity`); body mode: `object`
-- Description: Reference endpoint only; disabled as an MCP tool.
+- Description: Disabled because POST /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available.
 - Response: `WatchlistMutation`: Account mutation; disabled by policy.
 
 | Input | Location | Type | Required | Wire name | Default / description |
@@ -1348,7 +1407,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: not registered (reference name: `fomo_remove_watchlist`)
 - State: **catalog reference / disabled**
 - Upstream: `DELETE https://prod-api.fomo.family/watchlist` (base: `fomo`; auth: `identity`); body mode: `object`
-- Description: Reference endpoint only; disabled as an MCP tool.
+- Description: Disabled because DELETE /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available.
 - Response: `WatchlistMutation`: Account mutation; disabled by policy.
 
 | Input | Location | Type | Required | Wire name | Default / description |
@@ -1383,7 +1442,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: not registered
 - State: **catalog reference / disabled**
 - Upstream: `POST https://auth.privy.io/api/v1/sessions` (base: `privy`; auth: `access`); body mode: `object`
-- Description: Internal auth endpoint. Never exposed as an MCP tool.
+- Description: Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh.
 - Response: `PrivySession`: Rotated Privy access and refresh tokens; does not mint an identity token.
 
 | Input | Location | Type | Required | Wire name | Default / description |

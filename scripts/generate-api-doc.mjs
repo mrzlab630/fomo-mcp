@@ -48,6 +48,7 @@ function sampleValue(field, name) {
   if (field.type === "boolean") return false;
   if (field.type === "array") return [sampleValue(field.items ?? { type: "string" }, name)];
   if (field.type === "object") return Object.fromEntries(Object.entries(field.fields ?? {}).filter(([, child]) => child.required !== false).map(([key, child]) => [key, sampleValue(child, key)]));
+  if (["tokenId", "tokenIds", "symbol"].includes(name)) return "<tokenAddress>:1399811149";
   return name === "chain" ? "solana" : name === "resolution" ? "60" : `<${name}>`;
 }
 
@@ -66,6 +67,7 @@ function endpointSection(endpoint) {
     ...(endpoint.pathOverrides ? [`- Path overrides: ${Object.entries(endpoint.pathOverrides).map(([key, value]) => `\`${key}\` uses \`${value}\``).join("; ")}.`] : []),
     `- Description: ${endpoint.description}`,
     `- Response: \`${endpoint.response.type}\`: ${endpoint.response.description}`,
+    ...(endpoint.mcpMetadata ? [`- MCP-generated interpretation (not an upstream field): scope = \`${endpoint.mcpMetadata.scope}\`.`] : []),
     ...(endpoint.request.atLeastOneOf?.length ? [`- Validation: provide at least one non-empty value from ${endpoint.request.atLeastOneOf.map((name) => `\`${name}\``).join(", ")}.`] : []),
     "",
     "| Input | Location | Type | Required | Wire name | Default / description |",
@@ -97,11 +99,13 @@ const lines = [
   "",
   "## Contract and usage",
   "",
-  "Every registered data tool accepts top-level fields shown below and returns `{ data, meta }`. `meta` includes the catalog id, source base, HTTP status, request id, retry attempts, fetch time, and response type. Parameter names are the MCP names; the adapter applies path encoding, query serialization, body construction, and wire-name conversions.",
+  "Every registered data tool accepts top-level fields shown below and returns `{ data, meta }`. `data` is the upstream payload after only envelope unwrapping; MCP does not normalize or invent its business fields. `meta` is MCP-generated and includes the catalog id, source base, HTTP status, request id, retry attempts, fetch time, response type, provenance, scope and freshness metadata. `meta.provenance.data` identifies the payload as upstream, while `meta.provenance.metadata` identifies the envelope as MCP-generated. `meta.scope` comes from the MCP catalog. `meta.freshness` uses provider date headers when available and otherwise reports only the MCP observation time. Parameter names are the MCP names; the adapter applies path encoding, query serialization, body construction, and wire-name conversions.",
   "",
-  "The catalog contains private, reverse-engineered routes. A route appearing here is not proof that it is stable or authorized for every account. Live readiness requires a non-expired identity token for FOMO routes or an access token for Mobula routes, followed by a successful read-only request.",
+  "The catalog contains private, reverse-engineered routes. A route appearing here is not proof that it is stable or authorized for every account. Live readiness requires the non-expired token selected by each endpoint's auth field, followed by a successful read-only request. Enabled FOMO routes and Mobula OHLCV use the identity token; Privy session operations use the access/refresh pair internally.",
   "",
   "Response type names describe observed payload purposes, not validated upstream JSON schemas. Only the envelope is checked by the adapter. Do not assume undocumented response fields. Time units are specified per parameter; chart bars use Unix seconds, while sorted thesis and Mobula OHLCV use Unix milliseconds.",
+  "",
+  "FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.",
   "",
   "Use the final item or the cursor provided by the actual response when fetching another page. Stop when the page is empty, the cursor repeats, or the requested time boundary is reached. A current trending list does not represent seven-day activity: combine it with the 7d user leaderboard, paginated swaps, and timestamp-filtered thesis.",
   "",
@@ -112,6 +116,14 @@ const lines = [
   "| Catalog id | Method | Route | State |",
   "| --- | --- | --- | --- |",
   ...catalog.endpoints.map((endpoint) => `| [${endpoint.id}](#${endpoint.id}) | ${endpoint.method} | \`${endpoint.path}\` | ${isExposed(endpoint) ? "exposed" : "disabled/internal"} |`),
+  "",
+  "## Disabled and internal records",
+  "",
+  "These records are retained for reference and are not registered as MCP data tools. Their exclusions are independent of authentication expiry and are not evidence that the upstream routes have been removed. Privy refresh remains available internally to AuthManager.",
+  "",
+  "| Catalog id | Reason for exclusion |",
+  "| --- | --- |",
+  ...catalog.endpoints.filter((endpoint) => !isExposed(endpoint)).map((endpoint) => `| [${endpoint.id}](#${endpoint.id}) | ${cell(endpoint.description)} |`),
   "",
   "## Endpoint reference",
   "",

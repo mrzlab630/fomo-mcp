@@ -18,6 +18,8 @@ src/daemon.ts               PM2-managed health daemon
 
 The MCP surface is read-only. The endpoint map retains the swap quote and watchlist mutation routes as reference records from `ColinEdw/fomo-mcp`, but they are disabled (`expose: false`) and cannot be called by the MCP server. No wallet, signing, swap execution or transfer mutation code is included.
 
+The [disabled and internal records table](docs/API.md#disabled-and-internal-records) explains each exclusion. Watchlist writes are mutations, swap preparation is outside the analytics scope, Privy refresh is internal credential rotation, and Mobula pulse awaits provider-contract verification. Internal Privy refresh continues to work through AuthManager.
+
 The endpoint map is a reverse-engineered reference, not an official FOMO API contract. Its provenance is recorded in `config/endpoints.json`; each route must be verified against an authorized source before production collection.
 
 ## Agent documentation
@@ -35,9 +37,15 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 
 Endpoint parameters are exposed as top-level MCP input fields. The adapter builds path, query and body values from the catalog and handles the known `tokenAddress` to upstream `address` conversion for holders routes.
 
-The refreshed catalog contains 61 upstream records, with 56 read-only data tools exposed and five disabled/internal references. Two local authentication tools are registered separately. Detailed parameter tables, wire serialization, path overrides, auth modes, time units, and MCP argument examples are generated in [docs/API.md](docs/API.md).
+The refreshed catalog contains 63 upstream records, with 58 read-only data tools exposed and five disabled/internal references. Two local authentication tools are registered separately. Detailed parameter tables, wire serialization, path overrides, auth modes, time units, and MCP argument examples are generated in [docs/API.md](docs/API.md).
+
+Use `fomo_get_users_batch` to retrieve multiple profiles in one request using repeated `userIds` fields. `fomo_get_relay_fee_balance` reads the current account's fee balance without claiming it. FOMO `tokenIds`, `tokenId` and chart `symbol` use `<tokenAddress>:<numeric networkId>` (Solana: `<tokenAddress>:1399811149`); Mobula OHLCV uses a separate `chain` value such as `solana` and requires the identity token.
+
+Every data tool returns `{ data, meta }`. `data` contains the upstream payload after only transport-envelope unwrapping; MCP does not normalize or add business metrics. `meta.provenance.data` is `upstream`, while `meta.provenance.metadata` is `mcp_generated`. Scope and freshness fields are MCP metadata and must not be presented as fields returned by FOMO.
 
 Time bounds for `fomo_token_sorted_thesis` use Unix epoch milliseconds; `afterTime` is required by the upstream API. Clan feeds require at least one supported `feedTypes` value and send it as a repeated query field.
+
+The global feed accepts upstream `limit` values from 1 through 100. A pinned `manual` announcement can add one record beyond the requested limit. The feed has no `afterTime` or `beforeTime`; use `lastFeedId`, deduplicate by event id, and exclude pinned items before calculating time-window counts. `fomo_trading_activity` is still exposed because its upstream route is active, but its events may be stale and it has no time-bound filter; treat its timestamps as provider data.
 
 ### Endpoint discovery and maintenance
 
@@ -66,7 +74,7 @@ npm run test:endpoints
 
 Default discovery is report-only. `--apply` accepts only reviewed records in the configured catalog, rejects mutations/internal records/conflicts and catalog changes during discovery, writes atomically, and refreshes provenance. It never removes endpoints or infers new schemas from arbitrary route strings. Run one apply process at a time. Restart affected MCP hosts and the daemon after updating schemas; they load the catalog at startup. Confirm new routes with authorized read-only requests and recorded HTTP status/request ids before treating them as live verified.
 
-The configured transport is `hybrid`: Privy and auxiliary sources use direct fetch, while FOMO API calls run from an ordinary headed Chrome page because the FOMO edge rejects non-browser clients. The browser transport does not disable automation flags or spoof browser properties. With `transport.browser.avoidFocus` enabled (the default), Chrome starts without an initial startup window, creates a background tab through CDP, and minimizes its short-lived page before navigation. This prevents the API browser from taking focus; `appMode` is used only by the explicit focus-allowed fallback. The configured work-area edge (`10000,10000` by default under Xwayland) and minimal window size (`1x1` by default) remain available as fallback controls. A pure Wayland compositor may ignore window-position flags, while the background-target path still avoids initial activation. The interactive authorization browser is separate and remains visible for login.
+The configured transport is `hybrid`: Privy and auxiliary sources use direct fetch, while FOMO API calls run from an ordinary headed Chrome page because the FOMO edge rejects non-browser clients. The browser transport does not disable automation flags or spoof browser properties. With `transport.browser.avoidFocus` enabled (the default), Chrome starts without an initial startup window, creates a background tab through CDP, and minimizes its short-lived page before navigation. This prevents the API browser from taking focus; `appMode` is used only by the explicit focus-allowed fallback. The configured work-area edge (`10000,10000` by default under Xwayland) and minimal window size (`1x1` by default) remain available as fallback controls. A pure Wayland compositor may ignore window-position flags, while the background-target path still avoids initial activation. The transport terminates the detached Chrome process group and removes its temporary profile on normal close, startup failure, and process shutdown. The interactive authorization browser is separate and remains visible for login.
 
 ## Auth state
 
@@ -145,7 +153,7 @@ curl -i http://127.0.0.1:8387/readyz
 npm run pm2:logs
 ```
 
-`/healthz` proves the process is alive. `/readyz` returns `503` until an identity token is available. `/auth/status` returns metadata only and never token values. `collectorEnabled` is false until an authorized source and collection policy are accepted.
+`/healthz` proves the process is alive. `/readyz` returns `503` whenever the identity token is missing or expired (`auth.reauthRequired=true`), and returns `200` only when the daemon can serve authenticated identity requests. `/auth/status` returns metadata only and never token values. `collectorEnabled` is false until an authorized source and collection policy are accepted.
 
 ## Design differences from `ColinEdw/fomo-mcp`
 

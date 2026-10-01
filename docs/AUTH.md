@@ -3,6 +3,7 @@
 ## Token model
 
 The FOMO API is called through the browser transport with `Authorization: Bearer <identity token>`.
+The enabled Mobula OHLCV route uses the same identity token through direct transport.
 Privy access/refresh tokens are used for session operations and do not replace the identity token.
 
 | State | Meaning |
@@ -33,6 +34,10 @@ Set `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` to choose another
 
 ## Session refresh and reauthorization
 
+`privy_refresh_session` is an internal catalog reference, not an MCP data tool.
+Its exclusion prevents refresh-token inputs and session-credential outputs from
+being exposed to agents; it does not disable AuthManager's internal refresh.
+
 - Before an authenticated request, the gateway rereads the encrypted state and
   performs one shared Privy refresh when an access or identity token is expired
   and a refresh pair is available.
@@ -61,3 +66,5 @@ For manual import, use `npm run auth:import -- <file>`. Keep the import file out
 curl --noproxy '*' -sS http://127.0.0.1:8387/auth/status
 curl --noproxy '*' -sS http://127.0.0.1:8387/readyz
 ```
+
+Readiness is false with HTTP `503` when `auth.reauthRequired` is true, even if an identity token is present but expired. HTTP `200` and `ready: true` require both an available and non-expired identity token.

@@ -175,7 +175,11 @@ export class AuthManager {
     const needsIdentity = auth === "identity";
     const needsAccess = auth === "access";
     const refreshable = Boolean(this.state?.accessToken && this.state.refreshToken);
-    const refreshNeeded = this.accessExpired() || (needsIdentity && this.identityExpired());
+    // FOMO data calls authenticate with the identity token. Do not force a
+    // Privy access-token rotation for those calls when the identity token is
+    // still valid; the access token may be stale while read-only data access
+    // remains authorized.
+    const refreshNeeded = (needsAccess && this.accessExpired()) || (needsIdentity && this.identityExpired());
     if (refreshNeeded && refreshable) await this.refreshSingleFlight();
     await this.reloadPersistedState();
 

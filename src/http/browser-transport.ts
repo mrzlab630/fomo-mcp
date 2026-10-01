@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
 import os from "node:os";
@@ -16,7 +16,7 @@ function delay(ms: number): Promise<void> {
 }
 
 async function removeTemporaryProfile(profile: string): Promise<void> {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     await rm(profile, { recursive: true, force: true }).catch(() => undefined);
     try {
       await stat(profile);
@@ -97,6 +97,8 @@ export class BrowserTransport implements Transport {
   private chromeProcess: ChildProcess | undefined;
   private profile: string | undefined;
   private starting: Promise<Page> | undefined;
+  private closeInFlight: Promise<void> | undefined;
+  private processHooksInstalled = false;
   private activeRequests = 0;
 
   constructor(private readonly runtime: RuntimeConfig, private readonly auth: AuthManager) {
@@ -104,8 +106,57 @@ export class BrowserTransport implements Transport {
   }
 
   private readonly killChromeOnExit = (): void => {
-    if (this.chromeProcess && !this.chromeProcess.killed) this.chromeProcess.kill();
+    const chrome = this.chromeProcess;
+    if (chrome && chrome.exitCode === null && chrome.signalCode === null) {
+      this.signalChromeSync(chrome, "SIGKILL");
+    }
+    if (this.profile) {
+      try {
+        rmSync(this.profile, { recursive: true, force: true });
+      } catch {
+        // The process is exiting; cleanup will be retried on the next run.
+      }
+    }
   };
+
+  private readonly handleSigint = (): void => this.handleShutdownSignal("SIGINT");
+  private readonly handleSigterm = (): void => this.handleShutdownSignal("SIGTERM");
+  private readonly handleSighup = (): void => this.handleShutdownSignal("SIGHUP");
+
+  private installProcessHooks(): void {
+    if (this.processHooksInstalled) return;
+    this.processHooksInstalled = true;
+    process.once("SIGINT", this.handleSigint);
+    process.once("SIGTERM", this.handleSigterm);
+    process.once("SIGHUP", this.handleSighup);
+  }
+
+  private removeProcessHooks(): void {
+    if (!this.processHooksInstalled) return;
+    this.processHooksInstalled = false;
+    process.removeListener("SIGINT", this.handleSigint);
+    process.removeListener("SIGTERM", this.handleSigterm);
+    process.removeListener("SIGHUP", this.handleSighup);
+  }
+
+  private handleShutdownSignal(signal: NodeJS.Signals): void {
+    void this.close().finally(() => {
+      process.kill(process.pid, signal);
+    });
+  }
+
+  private signalChromeSync(chrome: ChildProcess, signal: NodeJS.Signals): void {
+    try {
+      if (chrome.pid) process.kill(-chrome.pid, signal);
+      else chrome.kill(signal);
+    } catch {
+      try {
+        chrome.kill(signal);
+      } catch {
+        // The process may have exited between the checks.
+      }
+    }
+  }
 
   async request(request: TransportRequest): Promise<TransportResponse> {
     this.activeRequests += 1;
@@ -194,6 +245,7 @@ export class BrowserTransport implements Transport {
     }
     const profile = await mkdtemp(path.join(os.tmpdir(), "fomo-mcp-api-"));
     this.profile = profile;
+    this.installProcessHooks();
     const windowWidth = Math.max(1, Math.floor(browserConfig.windowWidth ?? 1));
     const windowHeight = Math.max(1, Math.floor(browserConfig.windowHeight ?? 1));
     const windowPositionX = Math.floor(browserConfig.windowPositionX ?? 10000);
@@ -214,44 +266,49 @@ export class BrowserTransport implements Transport {
       ...windowingArguments(environment),
       ...(avoidFocus ? [] : browserConfig.appMode ? [`--app=${origin}`] : [origin]),
     ];
-    const chrome = spawn(browserConfig.executablePath ?? defaultChromePath(), chromeArgs, { detached: true, env: environment, stdio: ["ignore", "ignore", "pipe"] });
-    this.chromeProcess = chrome;
-    const endpoint = await new Promise<string>((resolve, reject) => {
-      let stderr = "";
-      const timer = setTimeout(() => reject(new TransportError("Timed out waiting for ordinary Chrome remote debugging")), 30000);
-      chrome.stderr?.on("data", (chunk: Buffer) => {
-        stderr = `${stderr}${chunk.toString("utf8")}`.slice(-65536);
-        const match = stderr.match(/DevTools listening on (ws:\/\/[^\s\r\n]+)/);
-        if (!match) return;
-        clearTimeout(timer);
-        resolve(match[1]!);
+    try {
+      const chrome = spawn(browserConfig.executablePath ?? defaultChromePath(), chromeArgs, { detached: true, env: environment, stdio: ["ignore", "ignore", "pipe"] });
+      this.chromeProcess = chrome;
+      const endpoint = await new Promise<string>((resolve, reject) => {
+        let stderr = "";
+        const timer = setTimeout(() => reject(new TransportError("Timed out waiting for ordinary Chrome remote debugging")), 30000);
+        chrome.stderr?.on("data", (chunk: Buffer) => {
+          stderr = `${stderr}${chunk.toString("utf8")}`.slice(-65536);
+          const match = stderr.match(/DevTools listening on (ws:\/\/[^\s\r\n]+)/);
+          if (!match) return;
+          clearTimeout(timer);
+          resolve(match[1]!);
+        });
+        chrome.once("error", (error) => { clearTimeout(timer); reject(error); });
+        chrome.once("exit", (code) => { clearTimeout(timer); reject(new TransportError(`Chrome exited before startup (code ${code ?? "unknown"})`)); });
       });
-      chrome.once("error", (error) => { clearTimeout(timer); reject(error); });
-      chrome.once("exit", (code) => { clearTimeout(timer); reject(new TransportError(`Chrome exited before startup (code ${code ?? "unknown"})`)); });
-    });
-    this.browser = await chromium.connectOverCDP(endpoint);
-    const context = this.browser.contexts()[0] ?? await this.browser.newContext();
-    if (avoidFocus) {
-      // `context.newPage()` asks Chrome to focus a newly created window. Create
-      // the target through CDP as a background tab instead, so the compositor
-      // keeps the user's active window untouched from the first page event.
-      const browserSession = await this.browser.newBrowserCDPSession();
-      await browserSession.send("Target.createTarget", {
-        url: "about:blank",
-        background: true,
-        focus: false,
-      });
-      await browserSession.detach().catch(() => undefined);
-      for (let attempt = 0; attempt < 50; attempt += 1) {
-        this.page = context.pages()[0];
-        if (this.page) break;
-        await delay(20);
+      this.browser = await chromium.connectOverCDP(endpoint);
+      const context = this.browser.contexts()[0] ?? await this.browser.newContext();
+      if (avoidFocus) {
+        // `context.newPage()` asks Chrome to focus a newly created window. Create
+        // the target through CDP as a background tab instead, so the compositor
+        // keeps the user's active window untouched from the first page event.
+        const browserSession = await this.browser.newBrowserCDPSession();
+        await browserSession.send("Target.createTarget", {
+          url: "about:blank",
+          background: true,
+          focus: false,
+        });
+        await browserSession.detach().catch(() => undefined);
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          this.page = context.pages()[0];
+          if (this.page) break;
+          await delay(20);
+        }
       }
+      this.page ??= context.pages()[0] ?? await context.newPage();
+      await this.minimizeWindow(context, this.page);
+      await this.page.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 });
+      return this.page;
+    } catch (error) {
+      await this.close();
+      throw error;
     }
-    this.page ??= context.pages()[0] ?? await context.newPage();
-    await this.minimizeWindow(context, this.page);
-    await this.page.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 });
-    return this.page;
   }
 
   private async minimizeWindow(context: BrowserContext, page: Page): Promise<void> {
@@ -265,43 +322,38 @@ export class BrowserTransport implements Transport {
   }
 
   async close(): Promise<void> {
-    process.removeListener("exit", this.killChromeOnExit);
-    await this.browser?.close().catch(() => undefined);
+    if (this.closeInFlight) return this.closeInFlight;
+    const cleanup = this.cleanupBrowser();
+    const wrapped = cleanup.finally(() => {
+      if (this.closeInFlight === wrapped) this.closeInFlight = undefined;
+      process.removeListener("exit", this.killChromeOnExit);
+      this.removeProcessHooks();
+    });
+    this.closeInFlight = wrapped;
+    return wrapped;
+  }
+
+  private async cleanupBrowser(): Promise<void> {
+    const browser = this.browser;
     const chrome = this.chromeProcess;
+    const profile = this.profile;
+    this.browser = undefined;
     this.chromeProcess = undefined;
-    let chromeExited = !chrome;
+    this.profile = undefined;
+    this.page = undefined;
+    this.starting = undefined;
+
+    await browser?.close().catch(() => undefined);
     if (chrome && chrome.exitCode === null && chrome.signalCode === null) {
-      try {
-        if (chrome.pid) process.kill(-chrome.pid, "SIGTERM");
-        else chrome.kill();
-      } catch {
-        chrome.kill();
-      }
+      this.signalChromeSync(chrome, "SIGTERM");
       await new Promise<void>((resolve) => {
         if (chrome.exitCode !== null || chrome.signalCode !== null) return resolve();
         const timer = setTimeout(resolve, 5000);
         timer.unref();
         chrome.once("exit", () => { clearTimeout(timer); resolve(); });
       });
-      if (chrome.exitCode === null && chrome.signalCode === null) {
-        try {
-          if (chrome.pid) process.kill(-chrome.pid, "SIGKILL");
-          else chrome.kill("SIGKILL");
-        } catch {
-          // The process may have exited between the checks.
-        }
-      }
-      chromeExited = chrome.exitCode !== null || chrome.signalCode !== null;
-    } else if (chrome) {
-      chromeExited = true;
+      if (chrome.exitCode === null && chrome.signalCode === null) this.signalChromeSync(chrome, "SIGKILL");
     }
-    if (chromeExited) {
-      const profile = this.profile;
-      this.profile = undefined;
-      if (profile) await removeTemporaryProfile(profile);
-    }
-    this.browser = undefined;
-    this.page = undefined;
-    this.starting = undefined;
+    if (profile) await removeTemporaryProfile(profile);
   }
 }

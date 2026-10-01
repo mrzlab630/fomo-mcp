@@ -12,6 +12,13 @@ Use the shortest valid path for every request.
    - `meta.endpointId` identifies the catalog record.
    - `meta.requestId` identifies this attempt.
    - `meta.attempts` reports bounded transport retries.
+   - `meta.provenance.data` identifies `data` as the upstream payload; `meta.provenance.metadata` identifies `meta` as MCP-generated.
+   - `meta.scope` is an MCP catalog interpretation, never a field returned by FOMO.
+   - `meta.freshness.basis` distinguishes an upstream date header (`provider-reported`) from the MCP observation time (`client-observed`).
+
+Do not treat MCP-generated scope or freshness metadata as upstream business data.
+The adapter may unwrap FOMO's transport envelope, but it does not add business
+fields to `data` or normalize upstream metric values.
 
 Do not call `fomo_auth_status` before every request. The transport refreshes an
 expired session once when the stored refresh pair can be used.
@@ -39,6 +46,14 @@ the local daemon directly when the MCP tools are available.
 - `fomo_get_leaderboard.window` accepts only `24h`, `7d`, `30d`, or `all`.
 - `fomo_get_leaderboard` returns users; `fomo_get_clan_leaderboard` returns
   clans.
+- `fomo_get_global_feed.limit` accepts `1..100` upstream. A pinned `manual`
+  item can make a response contain one more record than requested. The route
+  has no `afterTime` or `beforeTime`; paginate with `lastFeedId`, deduplicate
+  by event id, and exclude `pinned=true` before counting event types.
+- `fomo_trading_activity` remains an active upstream route, but FOMO does not
+  provide a time-bound parameter and may return stale or historical events.
+  Treat its timestamps as provider data and do not use it as a complete
+  current-period market ranking without an independent freshness check.
 - Use `fomo_search_users` or `fomo_search_tokens` when the user gives a name
   or phrase and no stable id/address.
 - Use a detail tool only after a search result provides the required id or

@@ -1,4 +1,4 @@
-import type { EndpointConfig, RuntimeConfig } from "../config/types.js";
+import type { EndpointConfig, EndpointScope, RuntimeConfig } from "../config/types.js";
 import { UpstreamResponseError } from "../errors.js";
 import type { Transport } from "../http/transport.js";
 import { assertReadOnly, buildRequest } from "./catalog.js";
@@ -30,6 +30,35 @@ function unwrapEnvelope(value: unknown): unknown {
   return record.responseObject ?? value;
 }
 
+function validHeaderDate(value: string | null): string | undefined {
+  if (!value || !Number.isFinite(Date.parse(value))) return undefined;
+  return new Date(value).toISOString();
+}
+
+function cacheAgeSeconds(value: string | null): number | undefined {
+  if (!value || !/^\d+$/.test(value.trim())) return undefined;
+  return Number(value.trim());
+}
+
+function freshnessMetadata(headers: Headers, observedAt: string): {
+  basis: "provider-reported" | "client-observed";
+  observedAt: string;
+  providerReportedAt?: string;
+  providerLastModified?: string;
+  cacheAgeSeconds?: number;
+} {
+  const providerReportedAt = validHeaderDate(headers.get("date"));
+  const providerLastModified = validHeaderDate(headers.get("last-modified"));
+  const cacheAge = cacheAgeSeconds(headers.get("age"));
+  return {
+    basis: providerReportedAt || providerLastModified ? "provider-reported" : "client-observed",
+    observedAt,
+    ...(providerReportedAt ? { providerReportedAt } : {}),
+    ...(providerLastModified ? { providerLastModified } : {}),
+    ...(cacheAge === undefined ? {} : { cacheAgeSeconds: cacheAge }),
+  };
+}
+
 export interface EndpointResult {
   data: unknown;
   meta: {
@@ -40,6 +69,15 @@ export interface EndpointResult {
     requestId: string;
     attempts: number;
     responseType: string;
+    provenance: {
+      data: "upstream";
+      metadata: "mcp_generated";
+    };
+    scope: {
+      value: EndpointScope | "unknown";
+      source: "mcp_catalog";
+    };
+    freshness: ReturnType<typeof freshnessMetadata>;
   };
 }
 
@@ -64,16 +102,26 @@ export class EndpointInvoker {
         { status: response.status, requestId: response.requestId },
       );
     }
+    const fetchedAt = new Date().toISOString();
     return {
       data: unwrapEnvelope(parsePayload(response.body)),
       meta: {
         endpointId: endpoint.id,
         source: endpoint.base,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt,
         status: response.status,
         requestId: response.requestId,
         attempts: response.attempts,
         responseType: endpoint.response.type,
+        provenance: {
+          data: "upstream",
+          metadata: "mcp_generated",
+        },
+        scope: {
+          value: endpoint.mcpMetadata?.scope ?? "unknown",
+          source: "mcp_catalog",
+        },
+        freshness: freshnessMetadata(response.headers, fetchedAt),
       },
     };
   }
