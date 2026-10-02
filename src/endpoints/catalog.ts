@@ -4,7 +4,7 @@ import { EndpointNotAllowedError } from "../errors.js";
 
 function fieldSchema(field: EndpointParam | NonNullable<EndpointParam["items"]>): z.ZodType {
   switch (field.type) {
-    case "string": return z.string();
+    case "string": return field.format === "uuid" ? z.uuid() : z.string();
     case "number": {
       let schema = z.number();
       if (field.minimum !== undefined) schema = schema.min(field.minimum);
@@ -67,7 +67,7 @@ function wireValue(value: unknown, parameter: EndpointParam): unknown {
   return value;
 }
 
-function applyPath(path: string, endpoint: EndpointConfig, args: Record<string, unknown>): string {
+function applyPath(endpoint: EndpointConfig, args: Record<string, unknown>): string {
   const overrideKey = endpoint.path.includes("{window}") ? String(args.window ?? "24h") : undefined;
   const selectedPath = overrideKey && endpoint.pathOverrides?.[overrideKey]
     ? endpoint.pathOverrides[overrideKey]
@@ -92,7 +92,7 @@ export function buildRequest(endpoint: EndpointConfig, args: Record<string, unkn
   })) {
     throw new Error(`Provide at least one non-empty parameter: ${endpoint.request.atLeastOneOf.join(", ")}`);
   }
-  const path = applyPath(endpoint.path, endpoint, args);
+  const path = applyPath(endpoint, args);
   const query: Record<string, string | number | boolean | string[] | undefined> = {};
   const bodyFields: Record<string, unknown> = {};
   let directBody: unknown;
@@ -101,6 +101,9 @@ export function buildRequest(endpoint: EndpointConfig, args: Record<string, unkn
     if (value === undefined) {
       if (parameter.required) throw new Error(`Missing required parameter: ${parameter.name}`);
       continue;
+    }
+    if (parameter.format === "uuid" && !z.uuid().safeParse(value).success) {
+      throw new Error(`Parameter ${parameter.name} must be a FOMO user UUID, not a wallet address or handle`);
     }
     const wireName = parameter.wireName ?? parameter.name;
     if (parameter.source === "path") continue;

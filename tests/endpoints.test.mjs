@@ -45,7 +45,14 @@ test("catalog contracts build correct cursor, auth and wire values", () => {
   assert.deepEqual(buildRequest(search, { token: "mint" }).body, { token: "mint" });
   assert.deepEqual(buildRequest(search, { phrase: "SOL" }).body, { phrase: "SOL" });
   assert.throws(() => buildRequest(endpoint("fomo_get_trades"), {}), /userId/);
-  assert.deepEqual(buildRequest(endpoint("fomo_get_trades"), { userId: "user", lastTradeId: "cursor" }).query, { userId: "user", orderBy: "closedAt", lastTradeId: "cursor" });
+  const userId = "d6a85eb5-d3fb-5b8a-8445-019af88ba512";
+  assert.deepEqual(buildRequest(endpoint("fomo_get_trades"), { userId, lastTradeId: "cursor" }).query, { userId, orderBy: "closedAt", lastTradeId: "cursor" });
+  const tradeSchema = z.object(inputSchema(endpoint("fomo_get_trades")));
+  assert.equal(tradeSchema.safeParse({ userId }).success, true);
+  for (const invalidId of ["modeincognito", "DPHECQsmgjJEJemEsv28A9D73AzgrgTpJtZe874YAHx6", "not-a-uuid"]) {
+    assert.equal(tradeSchema.safeParse({ userId: invalidId }).success, false);
+    assert.throws(() => buildRequest(endpoint("fomo_get_trades"), { userId: invalidId }), /FOMO user UUID/);
+  }
   assert.deepEqual(buildRequest(endpoint("fomo_get_user_swaps"), { id: "user/id", lastSwapIdV2: "cursor" }), { path: "/v2/users/user%2Fid/swaps", query: { lastSwapIdV2: "cursor" } });
   assert.equal(buildRequest(endpoint("fomo_get_leaderboard"), { window: "all" }).path, "/v2/leaderboard");
   assert.equal(buildRequest(endpoint("fomo_ohlcv"), { address: "mint", chain: "solana", from: 1, to: 2 }).query.chainId, "solana");

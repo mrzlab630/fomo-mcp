@@ -8,6 +8,7 @@ export type EndpointScope = "single-token" | "requested-token-set" | "provider-w
 
 export interface EndpointField {
   type: ParamType;
+  format?: "uuid";
   required?: boolean;
   minimum?: number;
   maximum?: number;
@@ -18,7 +19,6 @@ export interface EndpointField {
 
 export interface EndpointParam extends EndpointField {
   name: string;
-  input?: string;
   source: ParamSource;
   required: boolean;
   default?: unknown;
@@ -120,7 +120,6 @@ export interface RuntimeConfig {
     stateFile: string;
     masterKeyEnv: string;
     allowEnvironmentTokens: boolean;
-    persistEnvironmentTokens: boolean;
     privyAppId: string;
     privyClientId: string;
     privyClient: string;
@@ -137,8 +136,6 @@ export interface RuntimeConfig {
   daemon: {
     healthHost: string;
     healthPort: number;
-    heartbeatIntervalMs: number;
-    collectorEnabled: boolean;
   };
   discovery?: EndpointDiscoveryConfig;
 }

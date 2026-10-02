@@ -28,16 +28,23 @@ expired session once when the stored refresh pair can be used.
 Follow this path only when a data tool returns `reauthRequired: true`, or when
 the user asks to check authentication:
 
-1. Call `fomo_auth_start`.
-2. Give the returned `authUrl` to the user. The user must complete the local
-   browser flow.
-3. Poll `fomo_auth_status` about once per second until `ready` is `true`.
+1. Call `fomo_auth_start` if the data-tool response did not already start the
+   flow. The gateway starts the visible headed browser flow automatically when
+   the local daemon is available; the response includes a secret-free browser
+   flow status and id.
+2. Tell the user to complete the visible FOMO sign-in window. If
+   `browser.started` is false, give the returned local `authUrl` to the user
+   and open it in their browser.
+3. Poll `fomo_auth_status` about once per second while the flow is active.
+   On `browser.status: failed`, stop polling and offer the fallback link or
+   an explicit `fomo_auth_start` restart. Continue once `ready` is `true`.
 4. Retry the original data tool once with the same arguments.
 
-`fomo_auth_start` returns `nextAction: "open_auth_url_and_poll"` and a polling
-contract. `fomo_auth_status` returns `nextAction: "call_data_tool"` when ready
-or `"start_authorization"` when another authorization is needed. Never poll
-the local daemon directly when the MCP tools are available.
+`fomo_auth_start` returns `nextAction: "open_auth_url_and_poll"`, a polling
+contract, and a `browser` object describing the visible flow. `fomo_auth_status`
+returns the current daemon browser status while authorization is pending, then returns
+`nextAction: "call_data_tool"` when ready. Never poll the local daemon directly
+when the MCP tools are available.
 
 ## Tool selection
 
@@ -48,8 +55,9 @@ the local daemon directly when the MCP tools are available.
   clans.
 - `fomo_get_global_feed.limit` accepts `1..100` upstream. A pinned `manual`
   item can make a response contain one more record than requested. The route
-  has no `afterTime` or `beforeTime`; paginate with `lastFeedId`, deduplicate
-  by event id, and exclude `pinned=true` before counting event types.
+  has no `afterTime` or `beforeTime`; `data` remains the FOMO page as returned.
+  Any pagination, deduplication, pinned-item exclusion, or time filtering is
+  agent/user analysis and must be labelled as derived.
 - `fomo_trading_activity` remains an active upstream route, but FOMO does not
   provide a time-bound parameter and may return stale or historical events.
   Treat its timestamps as provider data and do not use it as a complete
@@ -58,6 +66,9 @@ the local daemon directly when the MCP tools are available.
   or phrase and no stable id/address.
 - Use a detail tool only after a search result provides the required id or
   address.
+- `fomo_get_trades.userId` requires the FOMO profile `id` UUID. Do not pass a
+  wallet address or user handle; obtain the UUID from a user or leaderboard
+  response first.
 - For clan analysis, call `fomo_get_clan` with the clan id and the requested
   upstream window first. Its response may include aggregate PnL, rank,
   tradeCount, memberCount, topTokens and a `members` snapshot; each member can

@@ -21,9 +21,9 @@ Response type names describe observed payload purposes, not validated upstream J
 
 FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.
 
-Use the final item or the cursor provided by the actual response when fetching another page. Stop when the page is empty, the cursor repeats, or the requested time boundary is reached. A current trending list does not represent seven-day activity: combine it with the 7d user leaderboard, paginated swaps, and timestamp-filtered thesis.
+The adapter returns each FOMO page as received, including cursors, pinned records, and provider timestamps. It does not automatically paginate, filter by time, reconcile token identities, normalize metrics, or classify sentiment. Users and agents decide how to use the data; any subsequent analysis must be labelled as derived. When explicitly collecting more pages, use the final item or cursor provided by the actual response and stop when the page is empty or the cursor repeats.
 
-For the normal request and reauthorization sequence, read [AI agent workflow](AGENT_WORKFLOW.md). Two additional auth tools are registered outside the endpoint catalog: `fomo_auth_status` accepts `{}` and returns secret-free metadata plus `ready`/`nextAction`; `fomo_auth_start` accepts `{}` and returns the local authorization URL and polling contract. Neither performs a data request or automatically starts a browser.
+For the normal request and reauthorization sequence, read [AI agent workflow](AGENT_WORKFLOW.md). Two additional auth tools are registered outside the endpoint catalog: `fomo_auth_status` accepts `{}` and returns secret-free metadata plus `ready`/`nextAction`; `fomo_auth_start` accepts `{}` and starts the visible headed browser flow when the local daemon is available, returning its secret-free status plus the local authorization URL and polling contract. Data tools also start this flow automatically when an identity session expires. Neither auth tool returns credentials.
 
 ## Endpoint index
 
@@ -709,12 +709,12 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - MCP tool: `fomo_get_trades`
 - State: **exposed read-only**
 - Upstream: `GET https://prod-api.fomo.family/trades` (base: `fomo`; auth: `identity`)
-- Description: Read trades with optional filters.
+- Description: Read trades with optional filters. The userId argument must be the FOMO profile UUID.
 - Response: `Trades`: Trade records matching filters.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `userId` | query | `string` | yes | same | none; The user whose trades are requested. |
+| `userId` | query | `string (uuid)` | yes | same | none; FOMO user UUID from a user profile or leaderboard response (id field), not a wallet address or handle. |
 | `orderBy` | query | `string` | no | same | `"closedAt"`; Sort field; the production UI uses closedAt. |
 | `tokenAddress` | query | `string` | no | same | none |
 | `lastTradeId` | query | `string` | no | same | none; Cursor returned by the previous trades page. |
@@ -723,7 +723,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 ```json
 {
-  "userId": "<userId>",
+  "userId": "00000000-0000-4000-8000-000000000001",
   "orderBy": "closedAt"
 }
 ```

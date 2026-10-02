@@ -9,7 +9,7 @@ export class HybridTransport implements Transport {
   private readonly browser: BrowserTransport;
   private readonly browserHost: string;
 
-  constructor(private readonly runtime: RuntimeConfig, auth: AuthManager) {
+  constructor(runtime: RuntimeConfig, auth: AuthManager) {
     this.direct = new FetchTransport(runtime, auth);
     this.browser = new BrowserTransport(runtime, auth);
     this.browserHost = new URL(runtime.apiBases.fomo).host;

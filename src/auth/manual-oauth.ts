@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { RuntimeConfig, AuthStatus } from "../config/types.js";
 import { AuthManager } from "./auth-manager.js";
+import { privyHeaders } from "./privy-headers.js";
 
 export type ManualOAuthStatus = "starting" | "awaiting_login" | "captured" | "failed";
 
@@ -17,7 +18,6 @@ export interface ManualOAuthSnapshot {
 interface PendingOAuth {
   verifier: string;
   state: string;
-  provider: string;
   snapshot: ManualOAuthSnapshot;
 }
 
@@ -40,11 +40,11 @@ export class ManualOAuthManager {
     const snapshot: ManualOAuthSnapshot = { id, status: "starting", startedAt, updatedAt: startedAt };
     const verifier = randomBytes(36).toString("base64url");
     const state = randomBytes(36).toString("base64url");
-    this.flows.set(id, { verifier, state, provider, snapshot });
+    this.flows.set(id, { verifier, state, snapshot });
     try {
       const response = await fetch(`${this.runtime.apiBases.privy}/api/v1/oauth/init`, {
         method: "POST",
-        headers: this.headers(),
+        headers: privyHeaders(this.runtime),
         body: JSON.stringify({
           redirect_to: `${this.runtime.http.origin}/favicon.ico`,
           provider,
@@ -89,7 +89,7 @@ export class ManualOAuthManager {
       const endpoint = `${this.runtime.apiBases.privy}/api/v1/oauth/authenticate`;
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: this.headers(),
+        headers: privyHeaders(this.runtime),
         body: JSON.stringify({
           authorization_code: code,
           state_code: pending.state,
@@ -130,16 +130,4 @@ export class ManualOAuthManager {
     }
   }
 
-  private headers(): Record<string, string> {
-    return {
-      "content-type": "application/json",
-      accept: "application/json",
-      origin: this.runtime.http.origin,
-      referer: this.runtime.http.referer,
-      "privy-client": this.runtime.auth.privyClient,
-      "privy-app-id": this.runtime.auth.privyAppId,
-      "privy-client-id": this.runtime.auth.privyClientId,
-      "user-agent": this.runtime.http.userAgent,
-    };
-  }
 }

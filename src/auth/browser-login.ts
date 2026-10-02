@@ -6,8 +6,10 @@ import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type { RuntimeConfig, StoredCookie } from "../config/types.js";
 import { AuthManager } from "./auth-manager.js";
+import { waitForChromeEndpoint } from "../http/chrome-startup.js";
 
-export type BrowserLoginStatus = "starting" | "awaiting_login" | "capturing" | "captured" | "failed";
+export const BROWSER_LOGIN_STATUSES = ["starting", "awaiting_login", "capturing", "captured", "failed"] as const;
+export type BrowserLoginStatus = typeof BROWSER_LOGIN_STATUSES[number];
 
 export interface BrowserLoginSnapshot {
   id: string;
@@ -146,7 +148,6 @@ function chromeFailure(stderr: string, code: number | null): Error {
 
 export class BrowserLoginManager {
   private readonly flows = new Map<string, BrowserLoginSnapshot>();
-  private readonly browsers = new Map<string, Browser>();
   private readonly pages = new Map<string, Page>();
   private readonly chromeProcesses = new Map<string, ChildProcess>();
   private readonly profileLocks = new Map<string, ProfileLock>();
@@ -223,36 +224,8 @@ export class BrowserLoginManager {
       "about:blank",
     ], { env: environment, stdio: ["ignore", "ignore", "pipe"] });
     this.chromeProcesses.set(id, chrome);
-    return new Promise<Browser>((resolve, reject) => {
-      let stderr = "";
-      let settled = false;
-      const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        chrome.kill();
-        reject(new Error("Timed out waiting for ordinary Chrome remote debugging"));
-      }, 30000);
-      chrome.stderr?.on("data", (chunk: Buffer) => {
-        stderr = `${stderr}${chunk.toString("utf8")}`.slice(-65536);
-        const match = stderr.match(/DevTools listening on (ws:\/\/[^\s\r\n]+)/);
-        if (!match || settled) return;
-        settled = true;
-        clearTimeout(timer);
-        void chromium.connectOverCDP(match[1]!).then(resolve, reject);
-      });
-      chrome.once("error", (error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(error);
-      });
-      chrome.once("exit", (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(chromeFailure(stderr, code));
-      });
-    });
+    const endpoint = await waitForChromeEndpoint(chrome, { exitError: chromeFailure });
+    return chromium.connectOverCDP(endpoint);
   }
 
   private async run(id: string): Promise<void> {
@@ -262,7 +235,6 @@ export class BrowserLoginManager {
         throw new Error("Interactive authorization requires browserLoginHeaded=true");
       }
       browser = await this.launchOrdinaryChrome(id);
-      this.browsers.set(id, browser);
       const context = browser.contexts()[0] ?? await browser.newContext();
       const page = context.pages()[0] ?? await context.newPage();
       this.pages.set(id, page);
@@ -341,7 +313,6 @@ export class BrowserLoginManager {
         });
       }
       await releaseProfileLock(this.profileLocks.get(id));
-      this.browsers.delete(id);
       this.pages.delete(id);
       this.chromeProcesses.delete(id);
       this.profileLocks.delete(id);

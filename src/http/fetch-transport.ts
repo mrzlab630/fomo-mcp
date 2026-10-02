@@ -1,23 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import type { RuntimeConfig } from "../config/types.js";
 import { AuthManager } from "../auth/auth-manager.js";
 import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import type { Transport, TransportRequest, TransportResponse } from "./transport.js";
-
-const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
-
-function retryAfterMs(headers: Headers): number | undefined {
-  const value = headers.get("retry-after");
-  if (!value) return undefined;
-  const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const date = Date.parse(value);
-  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { RETRYABLE_STATUSES, retryAfterMs } from "./retry-policy.js";
 
 async function readBody(response: Response, maxBytes: number): Promise<string> {
   if (!response.body) return "";
@@ -84,7 +71,7 @@ export class FetchTransport implements Transport {
           throw new ReauthRequiredError("Upstream returned HTTP 401; identity token re-authentication is required");
         }
         if (RETRYABLE_STATUSES.has(response.status) && attempt < attemptsAllowed) {
-          const serverDelay = this.runtime.http.respectRetryAfter ? retryAfterMs(response.headers) : undefined;
+          const serverDelay = this.runtime.http.respectRetryAfter ? retryAfterMs(response.headers.get("retry-after")) : undefined;
           await delay(serverDelay ?? this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));
           continue;
         }

@@ -5,6 +5,7 @@ import { resolveConfiguredPath } from "../config/load.js";
 import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import { EncryptedJsonStore } from "./encrypted-store.js";
 import { getSetCookieHeaders, mergeSetCookies, cookieHeader } from "./cookie-jar.js";
+import { privyHeaders } from "./privy-headers.js";
 
 interface PrivyRefreshResponse {
   token?: string;
@@ -149,25 +150,6 @@ export class AuthManager {
     return this.tokenExpired(this.state?.accessTokenExpiresAt);
   }
 
-  async identityToken(): Promise<string> {
-    await this.reloadPersistedState();
-    if (!this.state?.idToken) throw new AuthRequiredError("An identity token is required for FOMO API access");
-    if (this.identityExpired()) throw new ReauthRequiredError("Identity token is expired; open the local authorization link for a new login");
-    return this.state.idToken;
-  }
-
-  async accessToken(): Promise<string> {
-    await this.reloadPersistedState();
-    if (!this.state?.accessToken) throw new AuthRequiredError("An access token is required for this auth operation");
-    return this.state.accessToken;
-  }
-
-  async refreshToken(): Promise<string> {
-    await this.reloadPersistedState();
-    if (!this.state?.refreshToken) throw new AuthRequiredError("A refresh token is required for this auth operation");
-    return this.state.refreshToken;
-  }
-
   async ensureSession(auth: AuthMode): Promise<string | undefined> {
     if (auth === "none") return undefined;
     await this.reloadPersistedState();
@@ -175,10 +157,7 @@ export class AuthManager {
     const needsIdentity = auth === "identity";
     const needsAccess = auth === "access";
     const refreshable = Boolean(this.state?.accessToken && this.state.refreshToken);
-    // FOMO data calls authenticate with the identity token. Do not force a
-    // Privy access-token rotation for those calls when the identity token is
-    // still valid; the access token may be stale while read-only data access
-    // remains authorized.
+    // Refresh only the token required by this endpoint's authentication mode.
     const refreshNeeded = (needsAccess && this.accessExpired()) || (needsIdentity && this.identityExpired());
     if (refreshNeeded && refreshable) await this.refreshSingleFlight();
     await this.reloadPersistedState();
@@ -256,14 +235,8 @@ export class AuthManager {
     const timeout = setTimeout(() => controller.abort(), this.runtime.http.requestTimeoutMs);
     try {
       const headers: Record<string, string> = {
+        ...privyHeaders(this.runtime),
         authorization: `Bearer ${this.state.accessToken}`,
-        "content-type": "application/json",
-        origin: this.runtime.http.origin,
-        referer: this.runtime.http.referer,
-        "privy-client": this.runtime.auth.privyClient,
-        "privy-app-id": this.runtime.auth.privyAppId,
-        "privy-client-id": this.runtime.auth.privyClientId,
-        "user-agent": this.runtime.http.userAgent,
         ...(this.state.caId ? { "privy-ca-id": this.state.caId } : {}),
       };
       const cookies = await this.cookiesFor(endpoint);
@@ -302,10 +275,6 @@ export class AuthManager {
   private async persistIfAllowed(): Promise<void> {
     if (!this.state || !this.persisted) return;
     await this.store.write(this.state);
-  }
-
-  get authFilePath(): string {
-    return this.filePath;
   }
 }
 

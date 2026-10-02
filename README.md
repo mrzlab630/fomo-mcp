@@ -43,11 +43,13 @@ The refreshed catalog contains 63 upstream records, with 58 read-only data tools
 
 Use `fomo_get_users_batch` to retrieve multiple profiles in one request using repeated `userIds` fields. `fomo_get_relay_fee_balance` reads the current account's fee balance without claiming it. FOMO `tokenIds`, `tokenId` and chart `symbol` use `<tokenAddress>:<numeric networkId>` (Solana: `<tokenAddress>:1399811149`); Mobula OHLCV uses a separate `chain` value such as `solana` and requires the identity token.
 
+`fomo_get_trades.userId` requires the UUID from a FOMO user profile or leaderboard `id` field. Wallet addresses and handles are different identifiers and are rejected before an upstream request.
+
 Every data tool returns `{ data, meta }`. `data` contains the upstream payload after only transport-envelope unwrapping; MCP does not normalize or add business metrics. `meta.provenance.data` is `upstream`, while `meta.provenance.metadata` is `mcp_generated`. Scope and freshness fields are MCP metadata and must not be presented as fields returned by FOMO.
 
 Time bounds for `fomo_token_sorted_thesis` use Unix epoch milliseconds; `afterTime` is required by the upstream API. Clan feeds require at least one supported `feedTypes` value and send it as a repeated query field. `fomo_get_clan` can return a windowed clan snapshot with aggregate rank/PnL, trade count, top tokens, and an embedded `members` array containing user profiles, roles and member PnL. The route has no documented member cursor; compare `members.length` with the upstream `memberCount` before treating the snapshot as complete. Any rankings or aggregates calculated from that array are MCP-agent derived data.
 
-The global feed accepts upstream `limit` values from 1 through 100. A pinned `manual` announcement can add one record beyond the requested limit. The feed has no `afterTime` or `beforeTime`; use `lastFeedId`, deduplicate by event id, and exclude pinned items before calculating time-window counts. `fomo_trading_activity` is still exposed because its upstream route is active, but its events may be stale and it has no time-bound filter; treat its timestamps as provider data.
+The global feed accepts upstream `limit` values from 1 through 100. A pinned `manual` announcement can add one record beyond the requested limit. The feed has no `afterTime` or `beforeTime`; MCP passes the FOMO page through unchanged. Pagination, deduplication, pinned-item handling and time-window counts are user/agent analysis, not upstream fields. `fomo_trading_activity` is still exposed because its upstream route is active, but its events may be stale and it has no time-bound filter; treat its timestamps as provider data.
 
 ### Endpoint discovery and maintenance
 
@@ -114,7 +116,10 @@ The project does not automate Google credential entry, scrape the user's normal 
 
 ### Interactive local authorization
 
-The PM2 daemon provides a user-driven local flow. The MCP tool `fomo_auth_start` returns this link:
+The PM2 daemon provides a user-driven local flow. When identity authorization
+expires, data tools and `fomo_auth_start` start the visible headed browser flow
+automatically when the daemon is available. The MCP response also returns this
+local fallback link:
 
 ```text
 http://127.0.0.1:8387/auth/form
@@ -124,7 +129,7 @@ The page starts a separate visible Chrome window with a dedicated persistent pro
 
 The dedicated profile defaults to `~/.local/share/fomo-mcp/google-profile`. Override it with `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` in `config/runtime.json`. Do not point it at the user's normal Chrome profile. The profile contains a Google browser session and must be protected as sensitive local data.
 
-Before an authenticated request, the gateway can perform one shared Privy refresh when the stored access or identity token has expired. A read-only request may also perform one refresh-and-retry after an upstream HTTP 401; mutating requests are never retried. When an identity token remains expired, the data tool returns `reauthRequired: true` and the same local link. The agent can send that link to the user and retry after `fomo_auth_status` reports a fresh session. The refresh endpoint can rotate access/refresh tokens, but it normally cannot mint a new identity token.
+Before an authenticated request, the gateway can perform one shared Privy refresh when the stored access or identity token has expired. A read-only request may also perform one refresh-and-retry after an upstream HTTP 401; mutating requests are never retried. When an identity token remains expired, the data tool returns `reauthRequired: true` and starts the visible headed browser authorization flow through the local daemon. The agent tells the user to complete that window, then polls `fomo_auth_status` and retries once. If the daemon cannot start a browser, the response includes the local auth-form link as a fallback. The refresh endpoint can rotate access/refresh tokens, but it normally cannot mint a new identity token.
 
 The browser flow uses ordinary visible Chrome and does not disable automation flags or spoof `navigator.webdriver`. It is a local interactive login helper, not a stealth collector. It requires a graphical session and a locally installed Google Chrome; on a headless host it fails with a status message and leaves the existing auth state untouched.
 
@@ -155,7 +160,7 @@ curl -i http://127.0.0.1:8387/readyz
 npm run pm2:logs
 ```
 
-`/healthz` proves the process is alive. `/readyz` returns `503` whenever the identity token is missing or expired (`auth.reauthRequired=true`), and returns `200` only when the daemon can serve authenticated identity requests. `/auth/status` returns metadata only and never token values. `collectorEnabled` is false until an authorized source and collection policy are accepted.
+`/healthz` proves the process is alive. `/readyz` returns `503` whenever the identity token is missing or expired (`auth.reauthRequired=true`), and returns `200` when an available identity token has not expired. It does not probe FOMO. `/auth/status` returns metadata only and never token values. The daemon does not run a data collector.
 
 ## Design differences from `ColinEdw/fomo-mcp`
 

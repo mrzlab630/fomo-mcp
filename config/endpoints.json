@@ -591,8 +591,9 @@
             "name": "userId",
             "source": "query",
             "type": "string",
+            "format": "uuid",
             "required": true,
-            "description": "The user whose trades are requested."
+            "description": "FOMO user UUID from a user profile or leaderboard response (id field), not a wallet address or handle."
           },
           {
             "name": "orderBy",
@@ -621,7 +622,7 @@
         "type": "Trades",
         "description": "Trade records matching filters."
       },
-      "description": "Read trades with optional filters.",
+      "description": "Read trades with optional filters. The userId argument must be the FOMO profile UUID.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true
@@ -849,7 +850,6 @@
           {
             "name": "tokenAddress",
             "source": "body",
-            "input": "tokenAddress",
             "type": "string",
             "required": true,
             "wireName": "address"

@@ -26,17 +26,24 @@ This file is the working contract for an agent continuing this project.
 - Leaderboard windows are `24h`, `7d`, `30d`, and `all`; upstream may not support arbitrary windows such as `5d`.
 - `fomo_get_leaderboard` returns users. `fomo_get_clan_leaderboard` returns clans.
 - MCP responses contain `data` and `meta` (`endpointId`, source, status, requestId, attempts, fetchedAt, responseType).
+- Preserve the upstream `data` payload. MCP unwraps transport envelopes but
+  never filters pages, drops pinned records, normalizes business metrics or
+  adds sentiment. User/agent analysis must be labelled as derived.
+- `fomo_get_trades.userId` is the FOMO user `id` UUID, not a wallet or handle.
 
 ## Authentication
 
 - FOMO API access requires a valid identity token, not only an access token.
-- When `reauthRequired: true`, stop data requests and ask the user to follow `docs/AUTH.md`.
+- When `reauthRequired: true`, stop data requests and tell the user to complete
+  the automatically opened visible sign-in window. If `browser.started` is
+  false, use `authUrl` or explicit `fomo_auth_start`. Follow `docs/AUTH.md`.
 - Secrets are stored in encrypted `data/auth-state.enc.json`; the master key is supplied through `FOMO_MCP_MASTER_KEY`.
 
 ## Proof before completing a change
 
 ```bash
 npm run build
+npm run test:endpoints
 jq -e . config/endpoints.json
 curl --noproxy '*' -sS http://127.0.0.1:8387/healthz
 curl --noproxy '*' -sS http://127.0.0.1:8387/config/status

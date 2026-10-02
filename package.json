@@ -1,6 +1,6 @@
 {
   "name": "fomo-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Read-only FOMO data MCP gateway with replaceable transports and encrypted auth state",
   "type": "module",

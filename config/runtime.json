@@ -14,7 +14,7 @@
     "respectRetryAfter": true,
     "origin": "https://fomo.family",
     "referer": "https://fomo.family/",
-    "userAgent": "fomo-mcp/0.1.1"
+    "userAgent": "fomo-mcp/0.1.2"
   },
   "transport": {
     "mode": "hybrid",
@@ -34,7 +34,6 @@
     "stateFile": "./data/auth-state.enc.json",
     "masterKeyEnv": "FOMO_MCP_MASTER_KEY",
     "allowEnvironmentTokens": true,
-    "persistEnvironmentTokens": false,
     "privyAppId": "cm6h485o300n3zj9yl6vpedq7",
     "privyClientId": "client-WY5gFSayQjxnQhG4rP6SnwPAyPZWZpNRhJ6b9rzMnYwqH",
     "privyClient": "react-auth:3.34.0",
@@ -44,15 +43,13 @@
   },
   "mcp": {
     "name": "fomo-mcp",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "includeMutationTools": false,
     "includeInternalEndpoints": false
   },
   "daemon": {
     "healthHost": "127.0.0.1",
-    "healthPort": 8387,
-    "heartbeatIntervalMs": 30000,
-    "collectorEnabled": false
+    "healthPort": 8387
   },
   "discovery": {
     "sourceUrl": "https://fomo.family/",
