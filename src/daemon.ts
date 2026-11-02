@@ -11,6 +11,12 @@ await auth.initialize();
 const browserLogin = new BrowserLoginManager(runtime, auth);
 const manualOAuth = new ManualOAuthManager(runtime, auth);
 const startedAt = new Date().toISOString();
+const daemonHost = runtime.daemon.healthHost;
+const localHosts = new Set([daemonHost]);
+if (["127.0.0.1", "localhost", "::1", "[::1]"].includes(daemonHost)) {
+  for (const host of ["127.0.0.1", "localhost", "[::1]"]) localHosts.add(host);
+}
+const allowedAuthorities = new Set([...localHosts].map((host) => `${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${runtime.daemon.healthPort}`));
 
 async function requestBody(request: import("node:http").IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -26,6 +32,17 @@ async function requestBody(request: import("node:http").IncomingMessage): Promis
 
 const server = createServer(async (request, response) => {
   response.setHeader("content-type", "application/json; charset=utf-8");
+  response.setHeader("cache-control", "no-store");
+  response.setHeader("x-content-type-options", "nosniff");
+  response.setHeader("x-frame-options", "DENY");
+  const authority = request.headers.host;
+  if (!authority || !allowedAuthorities.has(authority)
+    || (request.headers.origin !== undefined && request.headers.origin !== `http://${authority}`)
+    || (request.method === "POST" && request.headers["sec-fetch-site"] === "cross-site")) {
+    response.writeHead(403);
+    response.end(JSON.stringify({ error: "untrusted_local_request" }));
+    return;
+  }
   if (request.url === "/healthz") {
     response.writeHead(200);
     response.end(JSON.stringify({ ok: true, service: runtime.appName, startedAt }));
@@ -61,7 +78,7 @@ const server = createServer(async (request, response) => {
 <p class="lead">Sign in once to let this local app read your FOMO data.</p>
 <ol class="steps" aria-label="Connection steps"><li><span class="step-number">1</span><span>Open the secure FOMO sign-in window.</span></li><li><span class="step-number">2</span><span>Complete sign-in with your usual account.</span></li><li><span class="step-number">3</span><span>Return here when the connection is confirmed.</span></li></ol>
 <div id="status" class="status hidden" role="status" aria-live="polite"><span id="statusIcon" class="status-icon" aria-hidden="true"></span><span id="statusText"></span></div>
-<div id="actions" class="actions"><button id="start" class="primary" type="button">Continue with FOMO</button><button id="manualStart" class="secondary" type="button">Use another browser</button></div>
+<div id="actions" class="actions"><button id="start" class="primary" type="button">Continue in your browser</button><button id="manualStart" class="secondary" type="button">Use the FOMO window</button></div>
 <section id="browserPanel" class="panel hidden" aria-live="polite"><h2 id="browserTitle">Connecting to FOMO</h2><p id="browserText"></p><div class="panel-actions"><button id="google" class="link-button hidden" type="button">Open sign-in window</button><button id="browserRestart" class="secondary hidden" type="button">Try again</button></div><form id="browserRedirectForm" class="hidden"><div class="field"><label for="browserRedirect">Did sign-in open in another browser?</label><input id="browserRedirect" required autocomplete="off" inputmode="url" placeholder="Paste the address shown after sign-in"></div><div class="panel-actions"><button class="secondary" type="submit">Finish here</button></div></form></section>
 <section id="manualPanel" class="panel hidden"><h2>Continue in your browser</h2><p id="manualText">Open the sign-in page, complete the connection, then return here.</p><div class="panel-actions"><a id="manualLink" class="link-button hidden" target="_blank" rel="noreferrer">Open sign-in page</a></div><form id="manualForm" class="hidden"><div class="field"><label for="manualRedirect">Browser address</label><input id="manualRedirect" required autocomplete="off" inputmode="url" placeholder="Paste the address shown after sign-in"></div><div class="panel-actions"><button class="primary" type="submit">Finish connection</button></div></form><div class="panel-actions"><button id="manualRestart" class="secondary" type="button">Start over</button></div></section>
 <p class="help">This page stays on your computer. Close it after the connection succeeds.</p>
@@ -103,8 +120,8 @@ const startBrowser = async () => { stopTimers(); hideStatus(); actions.classList
 const showManualState = (current) => { manualPanel.classList.remove('hidden'); if (current.authorizationUrl) { manualLink.href = current.authorizationUrl; manualLink.classList.remove('hidden'); } if (current.status === 'starting') { manualText.textContent = 'Preparing the sign-in page…'; manualForm.classList.add('hidden'); showStatus('Preparing your connection…', '', ''); return; } if (current.status === 'awaiting_login') { manualText.textContent = 'Complete sign-in in your browser, then paste the address shown after sign-in below.'; manualForm.classList.remove('hidden'); showStatus('Waiting for sign-in…', '', ''); return; } if (current.status === 'captured') { showReady(); return; } manualText.textContent = friendlyError(current.error); manualForm.classList.add('hidden'); showStatus(friendlyError(current.error), 'error', '!'); };
 const pollManual = async (id) => { try { const current = await request('/auth/oauth/' + encodeURIComponent(id)); showManualState(current); if (current.status !== 'captured' && current.status !== 'failed') manualTimer = setTimeout(() => pollManual(id), 1000); } catch (error) { showStatus(friendlyError(error), 'error', '!'); } };
 const startManual = async () => { stopTimers(); hideStatus(); actions.classList.add('hidden'); browserPanel.classList.add('hidden'); manualPanel.classList.remove('hidden'); manualLink.classList.add('hidden'); manualForm.classList.add('hidden'); try { const started = await post('/auth/oauth/start'); if (!started.id) throw new Error('Could not start sign-in'); manualId = started.id; showManualState(started); pollManual(manualId); } catch (error) { showStatus(friendlyError(error), 'error', '!'); } };
-$('start').onclick = startBrowser;
-$('manualStart').onclick = startManual;
+$('start').onclick = startManual;
+$('manualStart').onclick = startBrowser;
 browserRestart.onclick = startBrowser;
 manualRestart.onclick = startManual;
 google.onclick = async () => { google.disabled = true; try { const current = await post('/auth/session/' + encodeURIComponent(flowId) + '/open'); showBrowserState(current); } catch (error) { showStatus(friendlyError(error), 'error', '!'); } finally { google.disabled = false; } };

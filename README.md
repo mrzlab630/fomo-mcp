@@ -36,6 +36,7 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 - `config/endpoints.json` is the single endpoint catalog. Add or change a route there instead of scattering paths through code.
 - `config/runtime.json` contains fast-changing timeout, retry, auth, MCP and daemon settings.
 - Override paths with `FOMO_MCP_RUNTIME_CONFIG`, `FOMO_MCP_ENDPOINTS_CONFIG` and `FOMO_MCP_AUTH_FILE`.
+- Relative auth-state, browser-profile and discovery paths in runtime configuration resolve from the project root regardless of the launch working directory or an external runtime file's directory. Use absolute paths to relocate storage. The default remains `<project>/data`, not `<project>/config/data`.
 
 Endpoint parameters are exposed as top-level MCP input fields. The adapter builds path, query and body values from the catalog and handles the known `tokenAddress` to upstream `address` conversion for holders routes.
 
@@ -84,6 +85,16 @@ The configured transport is `hybrid`: Privy and auxiliary sources use direct fet
 
 Tokens and cookies are never logged. The persistent state is encrypted with AES-256-GCM and written with mode `0600` under `data/`.
 
+Readiness requires a readable future `exp` in the identity token; supplied
+expiry metadata cannot override it. Browser capture ignores expired identities
+and accepts credentials only from the configured FOMO/Privy origins. Refresh
+uses the configured Privy base with bounded response reading and no redirects.
+The local daemon checks Host/Origin and blocks cross-site POST requests. See
+[authentication](docs/AUTH.md) for the exact checks and their proof limits.
+The current FOMO login uses Privy HttpOnly cookies at `privy.fomo.family`;
+capture, refresh and manual OAuth support scoped cookie credentials as well as
+JSON token responses. Deprecated localStorage refresh markers are ignored.
+
 Generate a key and keep it in a secret manager or the process environment:
 
 ```bash
@@ -110,28 +121,29 @@ npm run auth:status
 npm run auth:refresh
 ```
 
-`auth:refresh` rotates the Privy access/refresh pair and uses a returned identity token when Privy supplies one. If no fresh identity token is returned, an expired identity token still requires interactive re-authentication and a new explicit import. Environment tokens are supported for ephemeral runs but are not persisted by default.
+`auth:refresh` rotates the Privy access/refresh pair and stores a fresh identity token when the session response supplies one. If it does not, an expired identity token still requires interactive Google reauthorization through the local form; no manual token import is needed for that flow. Environment tokens are supported for ephemeral runs but are not persisted by default.
 
-The project does not automate Google credential entry, scrape the user's normal Chrome profile, or extract credentials from DevTools. It uses only the dedicated FOMO MCP profile described below. Cookie values are accepted only through an explicit import or response `Set-Cookie` handling and are filtered by domain/path before sending.
+The project does not automate Google credential entry, scrape the user's normal Chrome profile, or extract credentials from DevTools. Google OAuth uses the user's normal browser and a callback pasted into the local form; the optional FOMO window uses a separate dedicated profile. Cookie imports require an explicit domain; a domain without a leading dot defaults to host-only, while a leading dot or `hostOnly: false` explicitly allows subdomains. Response cookies retain host-only/Domain scope, RFC default paths and Max-Age precedence. Both transports apply domain/path/secure/expiry checks; browser jar updates and deletions are saved to encrypted state.
 
 ### Interactive local authorization
 
 The PM2 daemon provides a user-driven local flow. When identity authorization
-expires, data tools and `fomo_auth_start` start the visible headed browser flow
-automatically when the daemon is available. The MCP response also returns this
-local fallback link:
+expires, data tools and `fomo_auth_start` start a manual OAuth flow
+automatically when the daemon is available. The MCP response returns a
+flow-specific local form link; open it in the user's normal browser, outside an
+embedded or CDP-controlled window:
 
 ```text
-http://127.0.0.1:8387/auth/form
+http://127.0.0.1:8387/auth/form?oauth=<flow-id>
 ```
 
-The page starts a separate visible Chrome window with a dedicated persistent profile. On the first run, the user completes the normal FOMO/Google login there. Later runs reuse that profile's Google session, so the user normally only confirms the login instead of entering credentials again. The flow observes only that browser session, captures the ID/access/refresh values emitted by the FOMO/Privy login and the session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and optional JWT expiry timestamps for the access, refresh and identity tokens.
+On the local form, **Continue in your browser** opens Google authorization. Complete sign-in there, then paste the resulting FOMO callback URL into the form. The daemon validates state and PKCE, captures the token response and session cookies, then writes them to the encrypted auth store. It never prints the values. `fomo_auth_status` exposes only boolean availability, cookie count and optional JWT expiry timestamps for the access, refresh and identity tokens.
 
-The dedicated profile defaults to `~/.local/share/fomo-mcp/google-profile`. Override it with `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` in `config/runtime.json`. Do not point it at the user's normal Chrome profile. The profile contains a Google browser session and must be protected as sensitive local data.
+The optional **Use the FOMO window** path uses a separate headed Chrome profile at `~/.local/share/fomo-mcp/google-profile`. Override it with `FOMO_MCP_BROWSER_PROFILE_DIR` or `auth.browserProfileDir` in `config/runtime.json`. Do not point it at the user's normal Chrome profile. The profile contains a Google browser session and must be protected as sensitive local data.
 
-Before an authenticated request, the gateway can perform one shared Privy refresh when the stored access or identity token has expired. A read-only request may also perform one refresh-and-retry after an upstream HTTP 401; mutating requests are never retried. When an identity token remains expired, the data tool returns `reauthRequired: true` and starts the visible headed browser authorization flow through the local daemon. The agent tells the user to complete that window, then polls `fomo_auth_status` and retries once. If the daemon cannot start a browser, the response includes the local auth-form link as a fallback. The refresh endpoint can rotate access/refresh tokens, but it normally cannot mint a new identity token.
+Before an authenticated request, the gateway can perform one shared Privy refresh when the stored access or identity token has expired. The session response may also contain a fresh identity token in JSON or scoped cookies; when it does, the gateway persists it and continues the data request. A read-only request may also perform one refresh-and-retry after an upstream HTTP 401; mutating requests are never retried. If refresh is rejected or does not provide a usable identity token, the data tool returns `reauthRequired: true` and starts the manual OAuth flow through the local daemon. The agent gives the user the flow-specific form link, then polls `fomo_auth_status` and retries once.
 
-The browser flow uses ordinary visible Chrome and does not disable automation flags or spoof `navigator.webdriver`. It is a local interactive login helper, not a stealth collector. It requires a graphical session and a locally installed Google Chrome; on a headless host it fails with a status message and leaves the existing auth state untouched.
+The optional FOMO window flow uses ordinary visible Chrome and does not disable automation flags or spoof `navigator.webdriver`. It is a local interactive login helper, not a stealth collector. It requires a graphical session and a locally installed Google Chrome; on a headless host it fails with a status message and leaves the existing auth state untouched.
 
 ## Run MCP over stdio
 
@@ -160,7 +172,7 @@ curl -i http://127.0.0.1:8387/readyz
 npm run pm2:logs
 ```
 
-`/healthz` proves the process is alive. `/readyz` returns `503` whenever the identity token is missing or expired (`auth.reauthRequired=true`), and returns `200` when an available identity token has not expired. It does not probe FOMO. `/auth/status` returns metadata only and never token values. The daemon does not run a data collector.
+`/healthz` proves the process is alive. `/readyz` returns `503` whenever the identity token is missing, expired or has no readable expiry (`auth.reauthRequired=true`), and returns `200` when an available identity token has a future `exp`. It does not probe FOMO. `/auth/status` returns metadata only and never token values. The daemon does not run a data collector.
 
 ## Design differences from `ColinEdw/fomo-mcp`
 

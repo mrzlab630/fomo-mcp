@@ -3,11 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const runtimePath = process.env.FOMO_MCP_RUNTIME_CONFIG ? path.resolve(process.env.FOMO_MCP_RUNTIME_CONFIG) : path.join(root, "config", "runtime.json");
-const catalogPath = process.env.FOMO_MCP_ENDPOINTS_CONFIG ? path.resolve(process.env.FOMO_MCP_ENDPOINTS_CONFIG) : path.join(path.dirname(runtimePath), "endpoints.json");
-const outputPath = path.join(root, "docs", "API.md");
-const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
-const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
 
 function cell(value) {
   return String(value).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
@@ -28,6 +23,8 @@ function fieldText(field) {
   if (field.minimum !== undefined) result += ` >= ${field.minimum}`;
   if (field.maximum !== undefined) result += ` <= ${field.maximum}`;
   if (field.format) result += ` (${field.format})`;
+  if (field.enum) result += ` enum: ${field.enum.join(" | ")}`;
+  if (field.minItems !== undefined) result += ` minItems: ${field.minItems}`;
   return result;
 }
 
@@ -45,6 +42,7 @@ function parameterRows(endpoint) {
 
 function sampleValue(field, name) {
   if (field.default !== undefined) return field.default;
+  if (field.enum) return field.enum[0];
   if (field.format === "uuid") return "00000000-0000-4000-8000-000000000001";
   if (field.type === "number") return name === "networkId" ? 1399811149 : name === "from" ? 1790121600 : name === "to" ? 1790726400 : name === "afterTime" ? 1790121600000 : field.minimum ?? 1;
   if (field.type === "boolean") return false;
@@ -54,7 +52,7 @@ function sampleValue(field, name) {
   return name === "chain" ? "solana" : name === "resolution" ? "60" : `<${name}>`;
 }
 
-function endpointSection(endpoint) {
+function endpointSection(endpoint, runtime) {
   const state = isExposed(endpoint) ? "exposed read-only" : "catalog reference / disabled";
   const tool = isExposed(endpoint) ? `\`${endpoint.tool}\`` : `not registered${endpoint.tool ? ` (reference name: \`${endpoint.tool}\`)` : ""}`;
   const body = endpoint.request.body ? `; body mode: \`${endpoint.request.body}\`` : "";
@@ -80,6 +78,7 @@ function endpointSection(endpoint) {
   ].join("\n");
 }
 
+export function renderApiDoc(catalog, runtime) {
 const categories = new Map();
 for (const endpoint of catalog.endpoints) {
   const list = categories.get(endpoint.category) ?? [];
@@ -108,6 +107,8 @@ const lines = [
   "The catalog is the single endpoint map: every record, including disabled and internal references, is listed in this document. A route is not marked deprecated merely because the current frontend bundle does not reference it; `catalogOnly` discovery results require a reviewed source contract or an authorized probe before deprecation. `fomo_trading_activity` is active upstream but may return stale events, which is a freshness limitation rather than a deprecated route.",
   "",
   "Response type names describe observed payload purposes, not validated upstream JSON schemas. Only the envelope is checked by the adapter. Do not assume undocumented response fields. Time units are specified per parameter; chart bars use Unix seconds, while sorted thesis and Mobula OHLCV use Unix milliseconds.",
+  "Data tools advertise an output schema for the successful `{ data, meta }` envelope; `data` remains unrestricted upstream JSON, including null and other falsy values. Failures use the SDK's `isError: true` result path; authorization failures additionally return the reauthorization instructions as structured content. Catalog loading validates local shapes and wire constraints, not upstream semantics or permissions. Internal and mutation records are permanently excluded regardless of legacy inclusion flags.",
+  "",
   "",
   "FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.",
   "",
@@ -134,7 +135,7 @@ const lines = [
 ];
 for (const [category, endpoints] of categories) {
   lines.push(`## ${category}`, "");
-  for (const endpoint of endpoints) lines.push(endpointSection(endpoint));
+  for (const endpoint of endpoints) lines.push(endpointSection(endpoint, runtime));
 }
 
 lines.push(
@@ -175,5 +176,23 @@ lines.push(
   "",
 );
 
-await writeFile(outputPath, lines.join("\n"), "utf8");
-console.log(JSON.stringify({ output: outputPath, records: catalog.endpoints.length }));
+return lines.join("\n");
+}
+
+export async function checkApiDoc(outputPath, rendered) {
+  if (!(await readFile(outputPath)).equals(Buffer.from(rendered, "utf8"))) {
+    throw new Error("API documentation differs from the exact generated bytes; run npm run docs:api");
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const runtimePath = process.env.FOMO_MCP_RUNTIME_CONFIG ? path.resolve(process.env.FOMO_MCP_RUNTIME_CONFIG) : path.join(root, "config", "runtime.json");
+  const catalogPath = process.env.FOMO_MCP_ENDPOINTS_CONFIG ? path.resolve(process.env.FOMO_MCP_ENDPOINTS_CONFIG) : path.join(path.dirname(runtimePath), "endpoints.json");
+  const outputPath = path.join(root, "docs", "API.md");
+  const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+  const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
+  const rendered = renderApiDoc(catalog, runtime);
+  if (process.argv.includes("--check")) await checkApiDoc(outputPath, rendered);
+  else await writeFile(outputPath, rendered, "utf8");
+  console.log(JSON.stringify({ output: outputPath, records: catalog.endpoints.length, checked: process.argv.includes("--check") }));
+}

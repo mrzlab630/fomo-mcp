@@ -4,7 +4,7 @@
   "apiBases": {
     "fomo": "https://prod-api.fomo.family",
     "mobula": "https://mobula-api.fomo.family",
-    "privy": "https://auth.privy.io"
+    "privy": "https://privy.fomo.family"
   },
   "http": {
     "requestTimeoutMs": 15000,
@@ -14,7 +14,7 @@
     "respectRetryAfter": true,
     "origin": "https://fomo.family",
     "referer": "https://fomo.family/",
-    "userAgent": "fomo-mcp/0.1.2"
+    "userAgent": "fomo-mcp/0.1.3"
   },
   "transport": {
     "mode": "hybrid",
@@ -43,7 +43,7 @@
   },
   "mcp": {
     "name": "fomo-mcp",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "includeMutationTools": false,
     "includeInternalEndpoints": false
   },

@@ -2,9 +2,9 @@ import { z } from "zod/v4";
 import type { EndpointConfig, EndpointParam } from "../config/types.js";
 import { EndpointNotAllowedError } from "../errors.js";
 
-function fieldSchema(field: EndpointParam | NonNullable<EndpointParam["items"]>): z.ZodType {
+export function fieldSchema(field: EndpointParam | NonNullable<EndpointParam["items"]>): z.ZodType {
   switch (field.type) {
-    case "string": return field.format === "uuid" ? z.uuid() : z.string();
+    case "string": return field.enum?.length ? z.enum(field.enum as [string, ...string[]]) : field.format === "uuid" ? z.uuid({ error: "Must be a FOMO user UUID, not a wallet address or handle" }) : z.string();
     case "number": {
       let schema = z.number();
       if (field.minimum !== undefined) schema = schema.min(field.minimum);
@@ -12,7 +12,7 @@ function fieldSchema(field: EndpointParam | NonNullable<EndpointParam["items"]>)
       return schema;
     }
     case "boolean": return z.boolean();
-    case "array": return z.array(field.items ? fieldSchema(field.items) : z.unknown());
+    case "array": return z.array(field.items ? fieldSchema(field.items) : z.unknown()).min(field.minItems ?? 0);
     case "object": {
       const shape: Record<string, z.ZodType> = {};
       for (const [name, child] of Object.entries(field.fields ?? {})) {
@@ -38,13 +38,12 @@ export function inputSchema(endpoint: EndpointConfig): Record<string, z.ZodType>
 
 export function exposedEndpoints(
   endpoints: EndpointConfig[],
-  includeMutationTools: boolean,
-  includeInternalEndpoints: boolean,
+  _includeMutationTools: boolean,
+  _includeInternalEndpoints: boolean,
 ): EndpointConfig[] {
   return endpoints.filter((endpoint) => {
     if (!endpoint.expose) return false;
-    if (endpoint.internalOnly && !includeInternalEndpoints) return false;
-    if (endpoint.sideEffect === "mutation" && !includeMutationTools) return false;
+    if (endpoint.internalOnly || endpoint.sideEffect !== "none") return false;
     return Boolean(endpoint.tool);
   });
 }
@@ -86,9 +85,10 @@ export interface BuiltRequest {
 }
 
 export function buildRequest(endpoint: EndpointConfig, args: Record<string, unknown>): BuiltRequest {
+  args = z.object(inputSchema(endpoint)).strict().parse(args);
   if (endpoint.request.atLeastOneOf?.length && !endpoint.request.atLeastOneOf.some((name) => {
     const value = args[name] ?? endpoint.request.params.find((parameter) => parameter.name === name)?.default;
-    return typeof value === "string" ? value.trim().length > 0 : value !== undefined && value !== null;
+    return Array.isArray(value) ? value.length > 0 : typeof value === "string" ? value.trim().length > 0 : value !== undefined && value !== null;
   })) {
     throw new Error(`Provide at least one non-empty parameter: ${endpoint.request.atLeastOneOf.join(", ")}`);
   }
@@ -97,7 +97,7 @@ export function buildRequest(endpoint: EndpointConfig, args: Record<string, unkn
   const bodyFields: Record<string, unknown> = {};
   let directBody: unknown;
   for (const parameter of endpoint.request.params) {
-    const value = args[parameter.name] ?? parameter.default;
+    const value = args[parameter.name];
     if (value === undefined) {
       if (parameter.required) throw new Error(`Missing required parameter: ${parameter.name}`);
       continue;

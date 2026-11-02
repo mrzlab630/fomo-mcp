@@ -338,6 +338,7 @@
             "type": "string",
             "required": false,
             "default": "24h",
+            "enum": ["24h", "7d", "30d", "all"],
             "description": "24h, 7d, 30d, or all."
           }
         ]
@@ -366,6 +367,7 @@
             "type": "string",
             "required": false,
             "default": "24h",
+            "enum": ["24h", "7d", "30d", "all"],
             "description": "24h, 7d, 30d, or all."
           },
           {
@@ -560,6 +562,7 @@
             "name": "feedTypes",
             "source": "query",
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "string"
             },
@@ -746,6 +749,7 @@
             "name": "tokenIds",
             "source": "body",
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "string"
             },
@@ -906,6 +910,7 @@
             "name": "tokens",
             "source": "query",
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "object",
               "fields": {
@@ -982,6 +987,7 @@
             "name": "tokens",
             "source": "body",
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "object",
               "fields": {
@@ -1533,7 +1539,7 @@
       },
       "response": {
         "type": "PrivySession",
-        "description": "Rotated Privy access and refresh tokens; does not mint an identity token."
+        "description": "Rotated Privy access and refresh tokens; may also return a fresh identity token."
       },
       "description": "Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh.",
       "auth": "access",
@@ -1571,6 +1577,7 @@
             "name": "feedTypes",
             "source": "query",
             "type": "array",
+            "minItems": 1,
             "required": true,
             "items": {
               "type": "string"
@@ -2109,6 +2116,7 @@
             "name": "userIds",
             "source": "query",
             "type": "array",
+            "minItems": 1,
             "required": true,
             "items": {
               "type": "string"

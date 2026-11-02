@@ -3,6 +3,8 @@ dist/
 data/
 logs/
 reports/
+.centurion/
+.hermes/
 .env
 .env.*
 !.env.example

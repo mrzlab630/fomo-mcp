@@ -17,11 +17,11 @@ async function fixture(t) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "fomo-mcp-test-"));
   const requests = [];
   let flow = { id: "test-flow", status: "awaiting_login" };
-  const data = { swaps: [{ id: "stale", createdAt: "2026-08-15T00:00:00Z", pinned: true }], hasNextPage: true };
+  let data = { swaps: [{ id: "stale", createdAt: "2026-08-15T00:00:00Z", pinned: true }], hasNextPage: true };
   const daemon = createServer((request, response) => {
     requests.push({ method: request.method, url: request.url });
     response.setHeader("content-type", "application/json");
-    if (request.url === "/auth/session/start" || request.url === "/auth/session/test-flow") {
+    if (request.url === "/auth/oauth/start" || request.url === "/auth/oauth/test-flow") {
       response.end(JSON.stringify({ ...flow, authorizationUrl: "https://example.test/?code=should-not-appear" }));
     } else response.end(JSON.stringify({ success: true, responseObject: data }));
   });
@@ -72,12 +72,16 @@ async function fixture(t) {
     await rm(directory, { recursive: true, force: true });
     delete process.env.FOMO_MCP_TEST_MASTER_KEY;
   });
-  return { requests, data, setExpiry, setFlow: (next) => { flow = next; },
+  return { requests, get data() { return data; }, setData: (next) => { data = next; }, list: () => request("tools/list", {}), setExpiry, setFlow: (next) => { flow = next; },
     call: (name, args = {}) => request("tools/call", { name, arguments: args }) };
 }
 
 test("MCP rejects wallet userId and preserves every field of the upstream page", async (t) => {
   const f = await fixture(t);
+  const listed = await f.list();
+  const dataTool = listed.tools.find((tool) => tool.name === "fomo_get_trades");
+  assert.equal(dataTool.outputSchema.type, "object");
+  assert.deepEqual(dataTool.outputSchema.required.sort(), ["data", "meta"]);
   await f.setExpiry(3600);
   const invalid = await f.call("fomo_get_trades", { userId: "wallet-address" });
   assert.equal(invalid.isError, true);
@@ -89,6 +93,21 @@ test("MCP rejects wallet userId and preserves every field of the upstream page",
   assert.equal(new URL(f.requests[0].url, "http://local").searchParams.get("userId"), userId);
 });
 
+test("MCP output schema accepts null and authorization errors retain SDK isError handling", async (t) => {
+  const f = await fixture(t);
+  await f.setExpiry(3600);
+  for (const data of [null, false, 0, ""]) {
+    f.setData(data);
+    const result = await f.call("fomo_get_trades", { userId });
+    assert.equal(result.isError, undefined);
+    assert.equal(result.structuredContent.data, data);
+  }
+  await f.setExpiry(-60);
+  const expired = await f.call("fomo_get_trades", { userId });
+  assert.equal(expired.isError, true);
+  assert.equal(expired.structuredContent.reauthRequired, true);
+});
+
 test("expired identity starts one flow, polls current status and can authorize a later expiry", async (t) => {
   const f = await fixture(t);
   await f.setExpiry(-60);
@@ -96,9 +115,12 @@ test("expired identity starts one flow, polls current status and can authorize a
   for (const reply of replies) {
     assert.equal(reply.structuredContent.reauthRequired, true);
     assert.equal(reply.structuredContent.browser.started, true);
+    assert.equal(new URL(reply.structuredContent.authUrl).searchParams.get("oauth"), "test-flow");
     assert.doesNotMatch(JSON.stringify(reply), /should-not-appear/);
   }
   assert.equal(f.requests.filter((r) => r.method === "POST").length, 1);
+  assert.equal(f.requests.some((r) => r.url.startsWith("/auth/session/")), false);
+  assert.equal(f.requests.some((r) => r.url === "/auth/oauth/start"), true);
   f.setFlow({ id: "test-flow", status: "failed", error: "Browser closed" });
   const failed = await f.call("fomo_auth_status");
   assert.equal(failed.structuredContent.browser.started, false);

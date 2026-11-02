@@ -9,7 +9,7 @@ import type { RuntimeConfig } from "../config/types.js";
 import { AuthManager } from "../auth/auth-manager.js";
 import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import type { Transport, TransportRequest, TransportResponse } from "./transport.js";
-import { RETRYABLE_STATUSES, retryAfterMs } from "./retry-policy.js";
+import { RETRYABLE_STATUSES, retryDelayMs } from "./retry-policy.js";
 import { waitForChromeEndpoint } from "./chrome-startup.js";
 
 async function removeTemporaryProfile(profile: string): Promise<void> {
@@ -77,6 +77,47 @@ interface BrowserFetchResult {
   status: number;
   body: string;
   headers: Record<string, string>;
+  error?: string;
+}
+
+/** Self-contained because Playwright serializes this function into the page. */
+export async function browserFetch({ url, method, headers, body, timeoutMs, maxBytes }: {
+  url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number;
+}): Promise<BrowserFetchResult> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => { controller.abort(); reject(new Error("Browser request timed out")); }, timeoutMs);
+  });
+  try {
+    return await Promise.race([(async () => {
+      const response = await fetch(url, { method, headers, body, credentials: "include", signal: controller.signal });
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+      reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      const chunks: string[] = [];
+      while (reader) {
+        const chunk = await Promise.race([reader.read(), expired]);
+        if (chunk.done) break;
+        bytes += chunk.value.byteLength;
+        if (bytes > maxBytes) throw new Error(`Response exceeded configured limit of ${maxBytes} bytes`);
+        chunks.push(decoder.decode(chunk.value, { stream: true }));
+      }
+      chunks.push(decoder.decode());
+      return { status: response.status, body: chunks.join(""), headers: responseHeaders };
+    })(), expired]);
+  } catch (error) {
+    return { status: 0, body: "", headers: {}, error: controller.signal.aborted ? "Browser request timed out"
+      : error instanceof Error && error.message.startsWith("Response exceeded configured limit") ? error.message : "Browser HTTP request failed" };
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+    void reader?.cancel().catch(() => undefined);
+    reader?.releaseLock();
+  }
 }
 
 export class BrowserTransport implements Transport {
@@ -88,6 +129,7 @@ export class BrowserTransport implements Transport {
   private closeInFlight: Promise<void> | undefined;
   private processHooksInstalled = false;
   private activeRequests = 0;
+  private cookieRequests: Promise<void> = Promise.resolve();
 
   constructor(private readonly runtime: RuntimeConfig, private readonly auth: AuthManager) {}
 
@@ -144,6 +186,10 @@ export class BrowserTransport implements Transport {
 
   async request(request: TransportRequest): Promise<TransportResponse> {
     this.activeRequests += 1;
+    const previous = this.cookieRequests;
+    let release!: () => void;
+    this.cookieRequests = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
     const requestId = crypto.randomUUID();
     const attemptsAllowed = request.retryable ? this.runtime.http.maxRetries + 1 : 1;
     const authRetryAllowed = request.retryable && request.auth !== "none";
@@ -159,25 +205,31 @@ export class BrowserTransport implements Transport {
             ...(request.body === undefined ? {} : { "content-type": "application/json" }),
             ...(token ? { authorization: `Bearer ${token}` } : {}),
           };
-          const result = await (await this.sharedPage()).evaluate(
-            async ({ url, method, headers, body }) => {
-              const response = await fetch(url, {
-                method,
-                headers,
-                body,
-                credentials: "include",
-              });
-              const responseHeaders: Record<string, string> = {};
-              response.headers.forEach((value, key) => { responseHeaders[key] = value; });
-              return { status: response.status, body: await response.text(), headers: responseHeaders };
-            },
+          const page = await this.sharedPage();
+          const context = page.context();
+          await this.seedCookies(context);
+          const evaluationTimeout = new AbortController();
+          let result: BrowserFetchResult;
+          try {
+            result = await Promise.race([page.evaluate(
+            browserFetch,
             {
               url: request.url,
               method: request.method,
               headers,
               body: request.body === undefined ? undefined : JSON.stringify(request.body),
+              timeoutMs: this.runtime.http.requestTimeoutMs,
+              maxBytes: this.runtime.http.maxResponseBytes,
             },
-          ) as BrowserFetchResult;
+            ) as Promise<BrowserFetchResult>, delay(this.runtime.http.requestTimeoutMs, undefined, { signal: evaluationTimeout.signal }).then(() => {
+              throw new TransportError("Browser request timed out", { requestId });
+            })]);
+          } finally {
+            evaluationTimeout.abort();
+          }
+          // Set-Cookie is forbidden to page JavaScript; the browser jar is authoritative.
+          await this.captureCookies(context);
+          if (result.error) throw new TransportError(result.error, { requestId });
           if (result.status === 401) {
             if (authRetryAllowed && !authRetried) {
               authRetried = true;
@@ -187,7 +239,7 @@ export class BrowserTransport implements Transport {
             throw new ReauthRequiredError("Upstream returned HTTP 401; identity token re-authentication is required");
           }
           if (RETRYABLE_STATUSES.has(result.status) && attempt < attemptsAllowed) {
-            await delay(retryAfterMs(result.headers["retry-after"]) ?? this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));
+            await delay(retryDelayMs(this.runtime.http, attempt, result.headers["retry-after"]));
             continue;
           }
           if (Buffer.byteLength(result.body, "utf8") > this.runtime.http.maxResponseBytes) {
@@ -206,14 +258,36 @@ export class BrowserTransport implements Transport {
           if (error instanceof AuthRequiredError || error instanceof ReauthRequiredError || error instanceof TransportError || attempt >= maxAttempts) {
             throw error;
           }
-          await delay(this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));
+          await delay(retryDelayMs(this.runtime.http, attempt));
         }
       }
       throw new TransportError(`Browser transport failed after ${attemptsAllowed} attempts: ${String(lastError)}`, { requestId });
     } finally {
       this.activeRequests -= 1;
+      release();
       if (this.activeRequests === 0) await this.close();
     }
+  }
+
+  private async seedCookies(context: BrowserContext): Promise<void> {
+    const cookies = await this.auth.browserCookies();
+    await context.clearCookies();
+    await context.addCookies(cookies.map((cookie) => ({
+      name: cookie.name, value: cookie.value,
+      domain: `${cookie.hostOnly ? "" : "."}${cookie.domain!}`, path: cookie.path!,
+      ...(cookie.expiresAt === undefined ? {} : { expires: cookie.expiresAt / 1000 }),
+      secure: cookie.secure, httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite === "strict" ? "Strict" : cookie.sameSite === "lax" ? "Lax" : cookie.sameSite === "none" ? "None" : undefined,
+    })));
+  }
+
+  private async captureCookies(context: BrowserContext): Promise<void> {
+    await this.auth.replaceBrowserCookies((await context.cookies()).map((cookie) => ({
+      name: cookie.name, value: cookie.value, domain: cookie.domain, hostOnly: !cookie.domain.startsWith("."), path: cookie.path,
+      expiresAt: cookie.expires > 0 ? cookie.expires * 1000 : undefined,
+      secure: cookie.secure, httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite.toLowerCase() as "strict" | "lax" | "none",
+    })));
   }
 
   private async sharedPage(): Promise<Page> {
@@ -256,6 +330,7 @@ export class BrowserTransport implements Transport {
       const endpoint = await waitForChromeEndpoint(chrome, { temporaryProfile: profile });
       this.browser = await chromium.connectOverCDP(endpoint);
       const context = this.browser.contexts()[0] ?? await this.browser.newContext();
+      await this.seedCookies(context);
       if (avoidFocus) {
         // `context.newPage()` asks Chrome to focus a newly created window. Create
         // the target through CDP as a background tab instead, so the compositor
@@ -276,6 +351,7 @@ export class BrowserTransport implements Transport {
       this.page ??= context.pages()[0] ?? await context.newPage();
       await this.minimizeWindow(context, this.page);
       await this.page.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await this.captureCookies(context);
       return this.page;
     } catch (error) {
       await this.close();

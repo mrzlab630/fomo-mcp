@@ -1,12 +1,17 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { EndpointMap, RuntimeConfig } from "./types.js";
+import { validateEndpointMap } from "./validate.js";
+import { MAX_TIMER_DELAY_MS } from "../http/retry-policy.js";
+
+const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 function configRoot(): string {
   const runtimePath = process.env.FOMO_MCP_RUNTIME_CONFIG;
   return runtimePath
     ? path.dirname(path.resolve(runtimePath))
-    : path.resolve(process.cwd(), "config");
+    : path.resolve(projectRoot, "config");
 }
 
 async function readJson<T>(filePath: string): Promise<T> {
@@ -23,6 +28,12 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
   if (!config.apiBases?.fomo || !config.http || !config.transport || !config.auth || !config.mcp || !config.daemon) {
     throw new Error(`Invalid runtime configuration: ${filePath}`);
   }
+  for (const key of ["requestTimeoutMs", "maxResponseBytes", "maxRetries", "retryBaseDelayMs"] as const) {
+    const value = config.http[key];
+    if (!Number.isSafeInteger(value) || value < (key === "requestTimeoutMs" || key === "maxResponseBytes" ? 1 : 0)
+      || (key !== "maxResponseBytes" && value > MAX_TIMER_DELAY_MS)) throw new Error(`Invalid HTTP limit: ${key}`);
+  }
+  if (typeof config.http.respectRetryAfter !== "boolean") throw new Error("Invalid HTTP retry policy");
   return config;
 }
 
@@ -34,13 +45,9 @@ export function resolveEndpointMapPath(): string {
 
 export async function loadEndpointMap(): Promise<EndpointMap> {
   const filePath = resolveEndpointMapPath();
-  const map = await readJson<EndpointMap>(filePath);
-  if (!Array.isArray(map.endpoints) || map.endpoints.length === 0) {
-    throw new Error(`Endpoint map is empty or invalid: ${filePath}`);
-  }
-  return map;
+  return validateEndpointMap(await readJson<unknown>(filePath));
 }
 
 export function resolveConfiguredPath(configuredPath: string): string {
-  return path.resolve(process.cwd(), configuredPath);
+  return path.resolve(projectRoot, configuredPath);
 }

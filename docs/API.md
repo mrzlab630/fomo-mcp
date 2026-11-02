@@ -18,6 +18,8 @@ The catalog contains private, reverse-engineered routes. A route appearing here 
 The catalog is the single endpoint map: every record, including disabled and internal references, is listed in this document. A route is not marked deprecated merely because the current frontend bundle does not reference it; `catalogOnly` discovery results require a reviewed source contract or an authorized probe before deprecation. `fomo_trading_activity` is active upstream but may return stale events, which is a freshness limitation rather than a deprecated route.
 
 Response type names describe observed payload purposes, not validated upstream JSON schemas. Only the envelope is checked by the adapter. Do not assume undocumented response fields. Time units are specified per parameter; chart bars use Unix seconds, while sorted thesis and Mobula OHLCV use Unix milliseconds.
+Data tools advertise an output schema for the successful `{ data, meta }` envelope; `data` remains unrestricted upstream JSON, including null and other falsy values. Failures use the SDK's `isError: true` result path; authorization failures additionally return the reauthorization instructions as structured content. Catalog loading validates local shapes and wire constraints, not upstream semantics or permissions. Internal and mutation records are permanently excluded regardless of legacy inclusion flags.
+
 
 FOMO tokenIds, tokenId and chart symbol values use `<tokenAddress>:<numeric networkId>`, such as `<tokenAddress>:1399811149` for Solana. Obtain both parts from a token response. The Mobula OHLCV chain query is a separate provider identifier (`solana` or `evm:<chain id>`); do not use it as the prefix of a FOMO token id. Batch user lookups use GET `/v2/users` with repeated userIds query fields; POST on that path is account registration and is not exposed.
 
@@ -400,7 +402,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `userIds` | query | `array<string>` | yes | same | none; User ids from a search, leaderboard or profile response; send at least one id as repeated userIds query fields. Only GET is supported; POST on this path registers an account and is excluded. Serialization: repeat. |
+| `userIds` | query | `array<string> minItems: 1` | yes | same | none; User ids from a search, leaderboard or profile response; send at least one id as repeated userIds query fields. Only GET is supported; POST on this path registers an account and is excluded. Serialization: repeat. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -512,7 +514,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `window` | path | `string` | no | same | `"24h"`; 24h, 7d, 30d, or all. |
+| `window` | path | `string enum: 24h \| 7d \| 30d \| all` | no | same | `"24h"`; 24h, 7d, 30d, or all. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -532,7 +534,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `window` | query | `string` | no | same | `"24h"`; 24h, 7d, 30d, or all. |
+| `window` | query | `string enum: 24h \| 7d \| 30d \| all` | no | same | `"24h"`; 24h, 7d, 30d, or all. |
 | `limit` | query | `number >= 1 <= 50` | no | same | `50` |
 | `cursor` | query | `string` | no | same | none; Cursor for the next page. |
 
@@ -665,7 +667,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 | --- | --- | --- | --- | --- | --- |
 | `id` | path | `string` | yes | same | none |
 | `limit` | query | `number` | no | same | `50` |
-| `feedTypes` | query | `array<string>` | yes | same | none; One or more clan activity types. Supported values: single_user_sell, single_user_transfer_out, user_trade_profit_milestone, large_buy, large_sell, large_transfer_in, large_transfer_out, manual, multi_user_buy, multi_user_sell, new_token_listing, price_since_listing, user_with_smart_following, thesis_created. Serialization: repeat. |
+| `feedTypes` | query | `array<string> minItems: 1` | yes | same | none; One or more clan activity types. Supported values: single_user_sell, single_user_transfer_out, user_trade_profit_milestone, large_buy, large_sell, large_transfer_in, large_transfer_out, manual, multi_user_buy, multi_user_sell, new_token_listing, price_since_listing, user_with_smart_following, thesis_created. Serialization: repeat. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -799,7 +801,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `tokenIds` | body | `array<string>` | yes | same | none; Token ids in <tokenAddress>:<numeric networkId> form, using the address and networkId from a token response. This is not a solana:<address> identifier. Sent as the complete request body. |
+| `tokenIds` | body | `array<string> minItems: 1` | yes | same | none; Token ids in <tokenAddress>:<numeric networkId> form, using the address and networkId from a token response. This is not a solana:<address> identifier. Sent as the complete request body. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -905,7 +907,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `tokens` | query | `array<object { tokenAddress: string, networkId: number }>` | yes | same | none; Serialization: json. Nested wire renames: {"tokenAddress":"address"}. |
+| `tokens` | query | `array<object { tokenAddress: string, networkId: number }> minItems: 1` | yes | same | none; Serialization: json. Nested wire renames: {"tokenAddress":"address"}. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -952,7 +954,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
-| `tokens` | body | `array<object { tokenAddress: string, networkId: number }>` | yes | same | none; Nested wire renames: {"tokenAddress":"address"}. |
+| `tokens` | body | `array<object { tokenAddress: string, networkId: number }> minItems: 1` | yes | same | none; Nested wire renames: {"tokenAddress":"address"}. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -1282,7 +1284,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 | --- | --- | --- | --- | --- | --- |
 | `limit` | query | `number >= 1 <= 100` | no | same | `50`; Upstream maximum is 100. A pinned manual item may make the response contain one more record than requested. |
 | `lastFeedId` | query | `string` | no | same | none; Cursor returned by the previous page. |
-| `feedTypes` | query | `array<string>` | yes | same | none; One or more feed type values. Serialization: repeat. |
+| `feedTypes` | query | `array<string> minItems: 1` | yes | same | none; One or more feed type values. Serialization: repeat. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
 
@@ -1443,9 +1445,9 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 - MCP tool: not registered
 - State: **catalog reference / disabled**
-- Upstream: `POST https://auth.privy.io/api/v1/sessions` (base: `privy`; auth: `access`); body mode: `object`
+- Upstream: `POST https://privy.fomo.family/api/v1/sessions` (base: `privy`; auth: `access`); body mode: `object`
 - Description: Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh.
-- Response: `PrivySession`: Rotated Privy access and refresh tokens; does not mint an identity token.
+- Response: `PrivySession`: Rotated Privy access and refresh tokens; may also return a fresh identity token.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |

@@ -4,30 +4,8 @@ import type { RuntimeConfig } from "../config/types.js";
 import { AuthManager } from "../auth/auth-manager.js";
 import { AuthRequiredError, ReauthRequiredError, TransportError } from "../errors.js";
 import type { Transport, TransportRequest, TransportResponse } from "./transport.js";
-import { RETRYABLE_STATUSES, retryAfterMs } from "./retry-policy.js";
-
-async function readBody(response: Response, maxBytes: number): Promise<string> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Buffer[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const next = await reader.read();
-      if (next.done) break;
-      const chunk = Buffer.from(next.value);
-      total += chunk.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new TransportError(`Response exceeded configured limit of ${maxBytes} bytes`);
-      }
-      chunks.push(chunk);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
+import { RETRYABLE_STATUSES, retryDelayMs } from "./retry-policy.js";
+import { readBoundedBody } from "./bounded-fetch.js";
 
 export class FetchTransport implements Transport {
   constructor(private readonly runtime: RuntimeConfig, private readonly auth: AuthManager) {}
@@ -63,6 +41,7 @@ export class FetchTransport implements Transport {
         });
         await this.auth.updateCookies(response.headers, request.url);
         if (response.status === 401) {
+          await response.body?.cancel();
           if (authRetryAllowed && !authRetried) {
             authRetried = true;
             await this.auth.refreshSession();
@@ -71,18 +50,18 @@ export class FetchTransport implements Transport {
           throw new ReauthRequiredError("Upstream returned HTTP 401; identity token re-authentication is required");
         }
         if (RETRYABLE_STATUSES.has(response.status) && attempt < attemptsAllowed) {
-          const serverDelay = this.runtime.http.respectRetryAfter ? retryAfterMs(response.headers.get("retry-after")) : undefined;
-          await delay(serverDelay ?? this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));
+          await response.body?.cancel();
+          await delay(retryDelayMs(this.runtime.http, attempt, response.headers.get("retry-after")));
           continue;
         }
-        const body = await readBody(response, this.runtime.http.maxResponseBytes);
+        const body = await readBoundedBody(response, this.runtime.http.maxResponseBytes, controller.signal);
         return { status: response.status, url: request.url, requestId, body, headers: response.headers, attempts: attempt };
       } catch (error) {
         lastError = error;
         if (error instanceof AuthRequiredError || error instanceof ReauthRequiredError || error instanceof TransportError || attempt >= maxAttempts) {
           throw error;
         }
-        await delay(this.runtime.http.retryBaseDelayMs * 2 ** (attempt - 1));
+        await delay(retryDelayMs(this.runtime.http, attempt));
       } finally {
         clearTimeout(timeout);
       }

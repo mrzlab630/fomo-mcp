@@ -18,13 +18,28 @@ const browserOutputSchema = z.object({
   error: z.string().optional(),
 });
 
+const dataOutputSchema = z.object({
+  data: z.unknown(),
+  meta: z.object({
+    endpointId: z.string(), source: z.string(), fetchedAt: z.string(), status: z.number(),
+    requestId: z.string(), attempts: z.number(), responseType: z.string(),
+    provenance: z.object({ data: z.literal("upstream"), metadata: z.literal("mcp_generated") }),
+    scope: z.object({ value: z.enum(["single-token", "requested-token-set", "provider-wide-verified-list", "unknown"]), source: z.literal("mcp_catalog") }),
+    freshness: z.object({
+      basis: z.enum(["provider-reported", "client-observed"]), observedAt: z.string(),
+      providerReportedAt: z.string().optional(), providerLastModified: z.string().optional(), cacheAgeSeconds: z.number().optional(),
+    }),
+  }),
+});
+
 function errorText(error: unknown): string {
   if (error instanceof Error) return `${error.name}: ${error.message}`;
   return String(error);
 }
 
-function authUrl(runtime: RuntimeConfig): string {
-  return `${daemonAuthUrl(runtime)}/auth/form`;
+function authUrl(runtime: RuntimeConfig, flowId?: string): string {
+  const form = `${daemonAuthUrl(runtime)}/auth/form`;
+  return flowId ? `${form}?oauth=${encodeURIComponent(flowId)}` : form;
 }
 
 function toolResult<T extends object>(result: T) {
@@ -34,7 +49,7 @@ function toolResult<T extends object>(result: T) {
 const AGENT_INSTRUCTIONS = [
   "Normal path: call the single fomo_* data tool that matches the user's request using its exact schema fields; do not add an auth-status call first.",
   "The transport performs one bounded session refresh automatically when possible.",
-  "When identity authorization expires, the gateway starts the visible headed browser flow automatically. Tell the user to complete the sign-in window, poll fomo_auth_status until ready is true, then retry the original data tool once.",
+  "When identity authorization expires, the gateway starts a manual OAuth flow automatically. Tell the user to open authUrl in their normal browser, complete Google sign-in, paste the callback URL into the local FOMO form, poll fomo_auth_status until ready is true, then retry the original data tool once.",
   "All data tools are read-only. Never call internal catalog records, expose credentials, or invent route parameters.",
   "Preserve upstream data, including pagination and pinned records. Any filtering, aggregation, normalization or sentiment analysis is agent-derived, never FOMO data.",
   "Successful data results always contain data and meta; use meta.status, meta.endpointId, meta.requestId, and meta.attempts as execution evidence.",
@@ -88,7 +103,7 @@ function daemonAuthUrl(runtime: RuntimeConfig): string {
 
 async function browserFlowRequest(runtime: RuntimeConfig, flowId?: string): Promise<BrowserFlowSnapshot> {
   try {
-    const route = flowId ? `/auth/session/${encodeURIComponent(flowId)}` : "/auth/session/start";
+    const route = flowId ? `/auth/oauth/${encodeURIComponent(flowId)}` : "/auth/oauth/start";
     const response = await fetch(`${daemonAuthUrl(runtime)}${route}`, {
       method: flowId ? "GET" : "POST",
       signal: AbortSignal.timeout(runtime.http.requestTimeoutMs),
@@ -128,11 +143,11 @@ async function authRequiredResult(
     reauthRequired: true,
     ready: false,
     nextAction: "start_authorization",
-    authUrl: authUrl(runtime),
+    authUrl: authUrl(runtime, flow.id || undefined),
     browser,
     instructions: browser.started
-      ? "Complete the visible FOMO sign-in window, poll fomo_auth_status until ready=true, then retry the original data tool once."
-      : "Open authUrl in the user's local browser, complete authorization, poll fomo_auth_status until ready=true, then retry the original data tool once.",
+      ? "Open authUrl in your normal browser, complete Google sign-in, paste the callback URL into the FOMO form, poll fomo_auth_status until ready=true, then retry the original data tool once."
+      : "Open authUrl in your normal browser, complete authorization, poll fomo_auth_status until ready=true, then retry the original data tool once.",
   };
 }
 
@@ -160,7 +175,7 @@ export async function createMcpServer(runtime: RuntimeConfig, endpointMap: Endpo
   const server = new McpServer({ name: runtime.mcp.name, version: runtime.mcp.version }, { instructions: AGENT_INSTRUCTIONS });
   server.registerTool("fomo_auth_status", {
     title: "Authentication status",
-    description: "Readiness check before or after user authorization. When authorization is required, starts the visible headed browser flow and returns its status; never returns token values.",
+    description: "Readiness check before or after user authorization. When authorization is required, starts a normal-browser OAuth flow and returns its status; never returns token values.",
     inputSchema: {},
     outputSchema: authStatusOutput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -170,13 +185,13 @@ export async function createMcpServer(runtime: RuntimeConfig, endpointMap: Endpo
     const flow = status.reauthRequired ? await ensureBrowserFlow() : undefined;
     const result = {
       ...authStatusResult(status),
-      ...(flow ? { browser: browserOutput(flow), authUrl: authUrl(runtime) } : {}),
+      ...(flow ? { browser: browserOutput(flow), authUrl: authUrl(runtime, flow.id || undefined) } : {}),
     };
     return toolResult(result);
   });
   server.registerTool("fomo_auth_start", {
     title: "Start authorization",
-    description: "Starts the visible headed browser authorization flow when possible and returns the local fallback URL plus polling contract. Never returns token values.",
+    description: "Starts a Google OAuth flow for the user's normal browser and returns the local FOMO form URL plus polling contract. Never returns token values.",
     inputSchema: {},
     outputSchema: authStartOutput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -186,14 +201,14 @@ export async function createMcpServer(runtime: RuntimeConfig, endpointMap: Endpo
     const result = {
       status: "authorization_required" as const,
       nextAction: "open_auth_url_and_poll" as const,
-      authUrl: authUrl(runtime),
+      authUrl: authUrl(runtime, flow.id || undefined),
       poll: { tool: "fomo_auth_status" as const, intervalMs: 1000, stopWhen: "ready=true" as const },
       requiresUser: true as const,
       secretsReturned: false as const,
       browser,
       instructions: browser.started
-        ? "Complete the visible FOMO sign-in window, then poll fomo_auth_status until ready=true."
-        : "Open authUrl in the user's local browser, complete FOMO authorization, then poll fomo_auth_status until ready=true.",
+        ? "Open authUrl in your normal browser, complete Google sign-in, paste the callback URL into the FOMO form, then poll fomo_auth_status until ready=true."
+        : "Open authUrl in your normal browser, complete FOMO authorization, then poll fomo_auth_status until ready=true.",
     };
     return toolResult(result);
   });
@@ -202,6 +217,7 @@ export async function createMcpServer(runtime: RuntimeConfig, endpointMap: Endpo
       title: endpoint.tool as string,
       description: `[${endpoint.category}] ${endpoint.description} Read-only ${endpoint.method}; returns {data,meta}.`,
       inputSchema: inputSchema(endpoint),
+      outputSchema: dataOutputSchema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: endpoint.method === "GET", openWorldHint: true },
     }, async (args) => {
       try {

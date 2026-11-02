@@ -12,6 +12,8 @@ export interface EndpointField {
   required?: boolean;
   minimum?: number;
   maximum?: number;
+  enum?: string[];
+  minItems?: number;
   items?: EndpointField;
   fields?: Record<string, EndpointField>;
   description?: string;
@@ -144,6 +146,8 @@ export interface StoredCookie {
   name: string;
   value: string;
   domain?: string;
+  /** Exact host scope; legacy imports without a leading dot default to host-only. */
+  hostOnly?: boolean;
   path?: string;
   expiresAt?: number;
   secure?: boolean;

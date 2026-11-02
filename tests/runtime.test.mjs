@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -101,8 +102,35 @@ test("/auth/form serves a user-facing connection screen", async (t) => {
     const html = await response.text();
     assert.equal(response.status, 200);
     assert.match(html, /Connect your FOMO account/);
-    assert.match(html, /Continue with FOMO/);
+    assert.match(html, /Continue in your browser/);
+    assert.match(html, /Use the FOMO window/);
     assert.doesNotMatch(html, /<pre|privy_oauth_code|reauthRequired|accessToken|refreshToken/);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-frame-options"), "DENY");
+    const origin = `http://127.0.0.1:${port}`;
+    for (const headers of [
+      { origin: "https://untrusted.test" },
+      { origin: "null" },
+      { host: `untrusted.test:${port}` },
+      { origin, "sec-fetch-site": "cross-site" },
+    ]) {
+      const blocked = await new Promise((resolve, reject) => {
+        const request = httpRequest(`${origin}/auth/session/missing/redirect`, { method: "POST", headers }, (response) => {
+          let body = "";
+          response.setEncoding("utf8");
+          response.on("data", (chunk) => { body += chunk; });
+          response.on("error", reject);
+          response.on("end", () => resolve({ status: response.statusCode, body }));
+        });
+        request.on("error", reject);
+        request.end("{}");
+      });
+      assert.equal(blocked.status, 403, JSON.stringify(headers));
+      assert.deepEqual(JSON.parse(blocked.body), { error: "untrusted_local_request" });
+    }
+    const local = await fetch(`${origin}/auth/session/missing/redirect`, { method: "POST", headers: { origin, "content-type": "application/json" }, body: "{}" });
+    assert.equal(local.status, 400);
+    assert.equal((await fetch(`${origin}/auth/status`)).status, 200);
   } finally {
     await stop(child);
   }

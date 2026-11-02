@@ -27,7 +27,7 @@ function unwrapEnvelope(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const record = value as Record<string, unknown>;
   if (record.success === false) throw new UpstreamResponseError(String(record.message ?? "Upstream returned success=false"));
-  return record.responseObject ?? value;
+  return Object.hasOwn(record, "responseObject") ? record.responseObject : value;
 }
 
 function validHeaderDate(value: string | null): string | undefined {

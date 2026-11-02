@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { chmod, mkdir, open, readFile, unlink } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, unlink, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import type { RuntimeConfig, StoredCookie } from "../config/types.js";
-import { AuthManager } from "./auth-manager.js";
+import { resolveConfiguredPath } from "../config/load.js";
+import { AuthManager, identityTokenIsCurrent, sessionTokensFromCookies } from "./auth-manager.js";
 import { waitForChromeEndpoint } from "../http/chrome-startup.js";
 
 export const BROWSER_LOGIN_STATUSES = ["starting", "awaiting_login", "capturing", "captured", "failed"] as const;
@@ -56,6 +57,7 @@ function cookiesFromContext(cookies: Awaited<ReturnType<BrowserContext["cookies"
     name: cookie.name,
     value: cookie.value,
     domain: cookie.domain,
+    hostOnly: !cookie.domain.startsWith("."),
     path: cookie.path,
     expiresAt: cookie.expires > 0 ? cookie.expires * 1000 : undefined,
     secure: cookie.secure,
@@ -68,7 +70,7 @@ function browserProfilePath(runtime: RuntimeConfig): string {
   const configured = process.env.FOMO_MCP_BROWSER_PROFILE_DIR?.trim() || runtime.auth.browserProfileDir?.trim();
   const selected = configured || path.join(os.homedir(), ".local", "share", "fomo-mcp", "google-profile");
   const expanded = selected.replace(/^~(?=\/|$)/, os.homedir());
-  return path.resolve(expanded);
+  return resolveConfiguredPath(expanded);
 }
 
 function browserEnvironment(): NodeJS.ProcessEnv {
@@ -85,6 +87,12 @@ function browserEnvironment(): NodeJS.ProcessEnv {
 async function ensurePrivateDirectory(directory: string): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await chmod(directory, 0o700);
+}
+
+async function clearChromeRuntimeFiles(profile: string): Promise<void> {
+  for (const name of ["DevToolsActivePort", "SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+    await rm(path.join(profile, name), { force: true }).catch(() => undefined);
+  }
 }
 
 interface ProfileLock {
@@ -174,14 +182,16 @@ export class BrowserLoginManager {
     const flow = this.flows.get(id);
     if (!page || !flow) throw new Error("Authorization flow is no longer active");
     const callback = new URL(rawUrl);
-    if (callback.protocol !== "https:" || callback.hostname !== "fomo.family") {
-      throw new Error("Redirect URL must point to https://fomo.family");
+    if (callback.origin !== "https://fomo.family" || callback.username || callback.password
+      || !["/token", "/favicon.ico"].includes(callback.pathname)) {
+      throw new Error("Redirect URL must point to https://fomo.family/token or https://fomo.family/favicon.ico");
     }
     if (!callback.searchParams.get("privy_oauth_code") || !callback.searchParams.get("privy_oauth_state")) {
       throw new Error("Redirect URL does not contain the expected Privy OAuth parameters");
     }
     this.update(id, { status: "capturing" });
-    await page.goto(callback.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
+    try { await page.goto(callback.toString(), { waitUntil: "domcontentloaded", timeout: 30000 }); }
+    catch { throw new Error("Could not open the OAuth callback in the authorization browser"); }
     return this.flows.get(id)!;
   }
 
@@ -190,7 +200,8 @@ export class BrowserLoginManager {
     const flow = this.flows.get(id);
     if (!page || !flow) throw new Error("Authorization flow is no longer active");
     if (!flow.authorizationUrl) throw new Error("Google authorization URL has not been observed yet");
-    await page.goto(flow.authorizationUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    try { await page.goto(flow.authorizationUrl, { waitUntil: "domcontentloaded", timeout: 30000 }); }
+    catch { throw new Error("Could not open the sign-in page in the authorization browser"); }
     return this.flows.get(id)!;
   }
 
@@ -206,6 +217,7 @@ export class BrowserLoginManager {
     }
     const profile = browserProfilePath(this.runtime);
     await ensurePrivateDirectory(profile);
+    await clearChromeRuntimeFiles(profile);
     if (!this.profileLocks.has(id)) {
       const lock = await acquireProfileLock(profile);
       this.profileLocks.set(id, lock);
@@ -239,26 +251,35 @@ export class BrowserLoginManager {
       const page = context.pages()[0] ?? await context.newPage();
       this.pages.set(id, page);
       const tokens: CapturedTokens = {};
+      const fomoOrigin = new URL(this.runtime.apiBases.fomo).origin;
+      const privyEndpoint = new URL(`${this.runtime.apiBases.privy.replace(/\/+$/, "")}/api/v1/oauth/authenticate`);
+      const loginOrigin = new URL(this.runtime.http.origin).origin;
       let oauthSeen = false;
       this.update(id, { status: "awaiting_login" });
       page.on("request", (request) => {
-        const url = request.url();
-        if (!this.flows.get(id)?.authorizationUrl && /^https:\/\/accounts\.google\.com\//.test(url) && /oauth|client_id=/.test(url)) {
-          this.update(id, { authorizationUrl: url });
+        const url = new URL(request.url());
+        if (!this.flows.get(id)?.authorizationUrl && url.origin === "https://accounts.google.com" && /oauth|client_id=/.test(url.href)) {
+          this.update(id, { authorizationUrl: url.href });
         }
-        if (url.startsWith(this.runtime.apiBases.fomo)) {
+        if (url.origin === fomoOrigin) {
           const identity = tokenFromAuthorization(request.headers().authorization);
-          if (identity) tokens.idToken = identity;
+          if (identityTokenIsCurrent(identity)) tokens.idToken = identity;
         }
-        const caId = request.headers()["privy-ca-id"];
-        if (caId) tokens.caId = caId;
+        if (url.origin === privyEndpoint.origin) {
+          const caId = request.headers()["privy-ca-id"];
+          if (caId) tokens.caId = caId;
+        }
       });
       page.on("response", async (response) => {
-        if (!response.url().includes("auth.privy.io/api/v1/oauth/authenticate")) return;
+        const url = new URL(response.url());
+        if (url.origin !== privyEndpoint.origin || url.pathname !== privyEndpoint.pathname || !response.ok()) return;
         oauthSeen = true;
         try {
           const captured = extractPrivyTokens(await response.json());
-          Object.assign(tokens, captured);
+          if (identityTokenIsCurrent(captured.idToken)) tokens.idToken = captured.idToken;
+          if (captured.accessToken) tokens.accessToken = captured.accessToken;
+          if (captured.refreshToken) tokens.refreshToken = captured.refreshToken;
+          if (captured.caId) tokens.caId = captured.caId;
           this.update(id, { status: "capturing" });
         } catch {
           // The browser may receive a non-JSON response during an OAuth redirect.
@@ -271,8 +292,14 @@ export class BrowserLoginManager {
         if (chrome && (chrome.exitCode !== null || chrome.signalCode !== null)) {
           throw new Error("Authorization browser was closed before the session was captured");
         }
-        if (!tokens.accessToken || !tokens.refreshToken) {
-          const stored = await page.evaluate(() => {
+        const cookies = cookiesFromContext(await context.cookies());
+        const cookieTokens = sessionTokensFromCookies(cookies, this.runtime);
+        if (identityTokenIsCurrent(cookieTokens.idToken)) tokens.idToken = cookieTokens.idToken;
+        if (cookieTokens.accessToken) tokens.accessToken = cookieTokens.accessToken;
+        if (cookieTokens.refreshToken) tokens.refreshToken = cookieTokens.refreshToken;
+        if ((!tokens.accessToken || !tokens.refreshToken) && new URL(page.url()).origin === loginOrigin) {
+          const stored = await page.evaluate((expectedOrigin) => {
+            if (location.origin !== expectedOrigin) return {};
             const read = (key: string): string | undefined => {
               const raw = localStorage.getItem(key);
               if (!raw) return undefined;
@@ -282,13 +309,12 @@ export class BrowserLoginManager {
               } catch { return undefined; }
             };
             return { accessToken: read("privy:pat"), refreshToken: read("privy:refresh_token"), caId: read("privy:caid") };
-          });
+          }, loginOrigin).catch(() => ({} as CapturedTokens));
           if (stored.accessToken) tokens.accessToken = stored.accessToken;
           if (stored.refreshToken) tokens.refreshToken = stored.refreshToken;
           if (stored.caId) tokens.caId = stored.caId;
         }
-        if (tokens.idToken && tokens.accessToken && tokens.refreshToken) {
-          const cookies = cookiesFromContext(await context.cookies());
+        if (identityTokenIsCurrent(tokens.idToken) && tokens.accessToken && tokens.refreshToken) {
           await this.auth.importState({ ...tokens, cookies }, "browser-login");
           this.update(id, { status: "captured" });
           await context.close();

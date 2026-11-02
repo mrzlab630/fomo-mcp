@@ -7,6 +7,7 @@ import { once } from "node:events";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { renderApiDoc } from "../scripts/generate-api-doc.mjs";
 import * as ts from "typescript";
 import { z } from "zod/v4";
 import { applyDiscoveryCandidates, canonicalPath, discoverEndpointMap, extractRouteReferences, readDiscoveryReport, saveEndpointMap, writeDiscoveryReport } from "../dist/endpoint-discovery.js";
@@ -188,6 +189,7 @@ test("discovery compares evidence and only applies reviewed read-only candidates
 
 test("generated API reference documents every catalog id and parameter", async () => {
   const docs = await readFile(new URL("../docs/API.md", import.meta.url), "utf8");
+  assert.deepEqual(await readFile(new URL("../docs/API.md", import.meta.url)), Buffer.from(renderApiDoc(catalog, runtime)));
   const sections = new Map([...docs.matchAll(/^### (\S+)\n([\s\S]*?)(?=^### |^## |$(?![\s\S]))/gm)].map((match) => [match[1], match[2]]));
   for (const item of catalog.endpoints) {
     assert.ok(sections.has(item.id), `Missing section: ${item.id}`);
