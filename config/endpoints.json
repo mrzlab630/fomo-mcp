@@ -1,12 +1,12 @@
 {
-  "version": 3,
+  "version": 4,
   "source": {
     "repository": "https://github.com/ColinEdw/fomo-mcp",
     "commit": "e97d14a194a65ec74cc420ba2af3a6956631e48f",
     "status": "reverse-engineered reference; refreshed from production frontend; verify before live use",
-    "discoveredAt": "2026-09-30T14:33:25.227Z",
+    "discoveredAt": "2026-11-02T14:36:31.233Z",
     "discoveryUrl": "https://fomo.family/",
-    "discoveryManifest": "86d0b4f8"
+    "discoveryManifest": "2521c6a0"
   },
   "endpoints": [
     {
@@ -842,6 +842,41 @@
       "expose": true
     },
     {
+      "id": "fomo_token_launchpad_details",
+      "tool": "fomo_token_launchpad_details",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/api/2/token/details",
+      "request": {
+        "params": [
+          {
+            "name": "address",
+            "source": "query",
+            "type": "string",
+            "required": true,
+            "description": "Token address or mint."
+          },
+          {
+            "name": "networkId",
+            "source": "query",
+            "type": "number",
+            "required": true,
+            "description": "Numeric FOMO network id."
+          }
+        ]
+      },
+      "response": {
+        "type": "TokenLaunchpadDetails",
+        "description": "Launchpad details for a token; the upstream may return no launchpad record."
+      },
+      "description": "Disabled pending an authorized access-token probe of the current launchpad contract; frontend route evidence alone is insufficient.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": false,
+      "internalOnly": true
+    },
+    {
       "id": "fomo_token_warnings",
       "tool": "fomo_token_warnings",
       "category": "tokens",
@@ -893,6 +928,25 @@
         "scope": "provider-wide-verified-list"
       },
       "description": "Read verified tokens.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_community_tokens",
+      "tool": "fomo_community_tokens",
+      "category": "tokens",
+      "base": "fomo",
+      "method": "POST",
+      "path": "/proxy/communityTokens",
+      "request": {
+        "params": []
+      },
+      "response": {
+        "type": "CommunityTokens",
+        "description": "Community token list returned by the production frontend."
+      },
+      "description": "Read the current community token list; no token mutation is performed.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true
@@ -1476,10 +1530,11 @@
         "type": "Transfers",
         "description": "Transfer history with another user."
       },
-      "description": "Read transfers with another user.",
+      "description": "Disabled because the current production manifest no longer references this route; retain as a historical catalog record until an authorized replacement contract is confirmed.",
       "auth": "identity",
       "sideEffect": "none",
-      "expose": true
+      "expose": false,
+      "internalOnly": true
     },
     {
       "id": "fomo_supported_transfer_tokens",
@@ -2044,10 +2099,11 @@
         "type": "PushPreferences",
         "description": "Current push notification preferences."
       },
-      "description": "Read push notification preferences.",
+      "description": "Disabled because the current production manifest no longer references this route; retain as a historical catalog record until the current push-preference contract is confirmed.",
       "auth": "identity",
       "sideEffect": "none",
-      "expose": true
+      "expose": false,
+      "internalOnly": true
     },
     {
       "id": "fomo_mobula_pulse",
@@ -2150,6 +2206,188 @@
         "description": "An object containing the authenticated account's relay fee balance; units are determined by the upstream response."
       },
       "description": "Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_clan_pnl_equity_series",
+      "tool": "fomo_get_clan_pnl_equity_series",
+      "category": "clans",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/clans/{id}/aggregatedSnapshot",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true,
+            "description": "Clan id from a clan search or leaderboard response."
+          },
+          {
+            "name": "timestamp",
+            "source": "query",
+            "type": "string",
+            "required": true,
+            "description": "Snapshot timestamp as an ISO-8601 date/time string."
+          }
+        ]
+      },
+      "response": {
+        "type": "ClanPnlEquitySeries",
+        "description": "Historical clan PnL/equity series for the requested timestamp."
+      },
+      "description": "Read a clan's aggregated PnL and equity snapshot series.",
+      "auth": "identity",
+      "sideEffect": "none",
+      "expose": true
+    },
+    {
+      "id": "fomo_get_user_referrals",
+      "tool": "fomo_get_user_referrals",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/referrals",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true,
+            "description": "User id from a user profile or leaderboard response."
+          },
+          {
+            "name": "limit",
+            "source": "query",
+            "type": "number",
+            "required": false,
+            "default": 25,
+            "minimum": 1,
+            "maximum": 25
+          },
+          {
+            "name": "sortBy",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "fees"
+          },
+          {
+            "name": "order",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "default": "desc"
+          },
+          {
+            "name": "lastReferralId",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous referrals page."
+          }
+        ]
+      },
+      "response": {
+        "type": "UserReferrals",
+        "description": "Paginated referral records for a user."
+      },
+      "description": "Disabled pending an authorized access-token probe of the current referral contract; frontend route evidence alone is insufficient.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": false,
+      "internalOnly": true
+    },
+    {
+      "id": "fomo_get_user_referrer_details",
+      "tool": "fomo_get_user_referrer_details",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/referrerDetails",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true,
+            "description": "User id from a user profile or leaderboard response."
+          }
+        ]
+      },
+      "response": {
+        "type": "UserReferrerDetails",
+        "description": "Referrer details for a user."
+      },
+      "description": "Disabled pending an authorized access-token probe of the current referrer-details contract; frontend route evidence alone is insufficient.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": false,
+      "internalOnly": true
+    },
+    {
+      "id": "fomo_get_user_rewards",
+      "tool": "fomo_get_user_rewards",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/rewards",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true,
+            "description": "User id from a user profile or leaderboard response."
+          },
+          {
+            "name": "cursor",
+            "source": "query",
+            "type": "string",
+            "required": false,
+            "description": "Cursor returned by the previous rewards page."
+          }
+        ]
+      },
+      "response": {
+        "type": "UserRewards",
+        "description": "Paginated rewards records for a user."
+      },
+      "description": "Disabled pending an authorized access-token probe of the current rewards contract; frontend route evidence alone is insufficient.",
+      "auth": "access",
+      "sideEffect": "none",
+      "expose": false,
+      "internalOnly": true
+    },
+    {
+      "id": "fomo_get_user_top_fumbles",
+      "tool": "fomo_get_user_top_fumbles",
+      "category": "users",
+      "base": "fomo",
+      "method": "GET",
+      "path": "/v2/users/{id}/topFumbles",
+      "request": {
+        "params": [
+          {
+            "name": "id",
+            "source": "path",
+            "type": "string",
+            "required": true,
+            "description": "User id from a user profile or leaderboard response."
+          }
+        ]
+      },
+      "response": {
+        "type": "UserTopFumbles",
+        "description": "Top fumble records for a user."
+      },
+      "description": "Read a user's top fumble records.",
       "auth": "identity",
       "sideEffect": "none",
       "expose": true

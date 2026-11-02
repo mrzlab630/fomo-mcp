@@ -22,7 +22,7 @@ The [disabled and internal records table](docs/API.md#disabled-and-internal-reco
 
 The endpoint map is a reverse-engineered reference, not an official FOMO API contract. Its provenance is recorded in `config/endpoints.json`; each route must be verified against an authorized source before production collection.
 
-`config/endpoints.json` is the single endpoint map and [docs/API.md](docs/API.md) is generated from it. The catalog currently has no endpoint confirmed as deprecated: a route absent from the current frontend bundle is recorded as `catalogOnly` evidence, not automatically marked obsolete. Disabled and internal records carry an explicit exclusion reason. `fomo_trading_activity` is active upstream but may return stale events; that is a freshness limitation, not endpoint deprecation.
+`config/endpoints.json` is the single endpoint map and [docs/API.md](docs/API.md) is generated from it. Discovery evidence is reviewed before a route is disabled: the current catalog retains two historical route records that are no longer referenced by the production frontend, with explicit exclusion reasons. Other `catalogOnly` results remain evidence rather than automatic removal. `fomo_trading_activity` is active upstream but may return stale events; that is a freshness limitation.
 
 ## Agent documentation
 
@@ -40,7 +40,7 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 
 Endpoint parameters are exposed as top-level MCP input fields. The adapter builds path, query and body values from the catalog and handles the known `tokenAddress` to upstream `address` conversion for holders routes.
 
-The refreshed catalog contains 63 upstream records, with 58 read-only data tools exposed and five disabled/internal references. Two local authentication tools are registered separately. Detailed parameter tables, wire serialization, path overrides, auth modes, time units, and MCP argument examples are generated in [docs/API.md](docs/API.md).
+The refreshed catalog contains 70 upstream records, with 59 read-only data tools exposed and eleven disabled/internal references. Two local authentication tools are registered separately. Detailed parameter tables, wire serialization, path overrides, auth modes, time units, and MCP argument examples are generated in [docs/API.md](docs/API.md).
 
 Use `fomo_get_users_batch` to retrieve multiple profiles in one request using repeated `userIds` fields. `fomo_get_relay_fee_balance` reads the current account's fee balance without claiming it. FOMO `tokenIds`, `tokenId` and chart `symbol` use `<tokenAddress>:<numeric networkId>` (Solana: `<tokenAddress>:1399811149`); Mobula OHLCV uses a separate `chain` value such as `solana` and requires the identity token.
 

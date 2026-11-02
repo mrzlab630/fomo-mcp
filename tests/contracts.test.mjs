@@ -94,7 +94,7 @@ test("legacy inclusion flags never advertise mutation or internal tools", () => 
   ];
   for (const includeMutation of [true, false]) for (const includeInternal of [true, false]) {
     assert.deepEqual(exposedEndpoints(unsafe, includeMutation, includeInternal), []);
-    assert.equal(exposedEndpoints(catalog.endpoints, includeMutation, includeInternal).length, 58);
+    assert.equal(exposedEndpoints(catalog.endpoints, includeMutation, includeInternal).length, 59);
   }
 });
 

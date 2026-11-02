@@ -2,12 +2,12 @@
 
 > Generated from `config/endpoints.json` by `npm run docs:api`. Keep the catalog as the source of truth; edit this file only through the generator.
 
-- Catalog version: `3`
-- Records: **63**
-- Exposed read-only records: **58**
-- Disabled/internal references: **5**
+- Catalog version: `4`
+- Records: **70**
+- Exposed read-only records: **59**
+- Disabled/internal references: **11**
 - Source status: reverse-engineered reference; refreshed from production frontend; verify before live use
-- Production evidence: https://fomo.family/; manifest `86d0b4f8`; collected 2026-09-30T14:33:25.227Z.
+- Production evidence: https://fomo.family/; manifest `2521c6a0`; collected 2026-11-02T14:36:31.233Z.
 
 ## Contract and usage
 
@@ -56,8 +56,10 @@ For the normal request and reauthorization sequence, read [AI agent workflow](AG
 | [fomo_filter_tokens](#fomo_filter_tokens) | POST | `/proxy/filterTokens` | exposed |
 | [fomo_search_tokens](#fomo_search_tokens) | POST | `/proxy/filterTokensSearch` | exposed |
 | [fomo_token_details](#fomo_token_details) | POST | `/proxy/tokenDetails` | exposed |
+| [fomo_token_launchpad_details](#fomo_token_launchpad_details) | GET | `/api/2/token/details` | disabled/internal |
 | [fomo_token_warnings](#fomo_token_warnings) | POST | `/proxy/tokenWarnings` | exposed |
 | [fomo_verified_tokens](#fomo_verified_tokens) | GET | `/proxy/verifiedTokens` | exposed |
+| [fomo_community_tokens](#fomo_community_tokens) | POST | `/proxy/communityTokens` | exposed |
 | [fomo_top_holders](#fomo_top_holders) | GET | `/hodlers/top` | exposed |
 | [fomo_dev_holdings](#fomo_dev_holdings) | GET | `/hodlers/devs` | exposed |
 | [fomo_friends_holdings](#fomo_friends_holdings) | POST | `/hodlers/friends` | exposed |
@@ -70,7 +72,7 @@ For the normal request and reauthorization sequence, read [AI agent workflow](AG
 | [fomo_get_watchlist](#fomo_get_watchlist) | GET | `/watchlist` | exposed |
 | [fomo_add_watchlist](#fomo_add_watchlist) | POST | `/watchlist` | disabled/internal |
 | [fomo_remove_watchlist](#fomo_remove_watchlist) | DELETE | `/watchlist` | disabled/internal |
-| [fomo_transfers_with](#fomo_transfers_with) | GET | `/v2/transfers/with/{userId}` | exposed |
+| [fomo_transfers_with](#fomo_transfers_with) | GET | `/v2/transfers/with/{userId}` | disabled/internal |
 | [fomo_supported_transfer_tokens](#fomo_supported_transfer_tokens) | GET | `/transfers/v2/supportedTokens` | exposed |
 | [fomo_get_config](#fomo_get_config) | GET | `/config` | exposed |
 | [privy_refresh_session](#privy_refresh_session) | POST | `/api/v1/sessions` | disabled/internal |
@@ -90,10 +92,15 @@ For the normal request and reauthorization sequence, read [AI agent workflow](AG
 | [fomo_get_mutuals](#fomo_get_mutuals) | GET | `/v2/users/{id}/mutuals` | exposed |
 | [fomo_get_user_top_theses](#fomo_get_user_top_theses) | GET | `/v2/users/{id}/topTheses` | exposed |
 | [fomo_get_user_transfers](#fomo_get_user_transfers) | GET | `/v2/users/{id}/transfers` | exposed |
-| [fomo_get_push_preferences](#fomo_get_push_preferences) | GET | `/v2/users/pushToken/preferences` | exposed |
+| [fomo_get_push_preferences](#fomo_get_push_preferences) | GET | `/v2/users/pushToken/preferences` | disabled/internal |
 | [fomo_mobula_pulse](#fomo_mobula_pulse) | POST | `/api/2/pulse` | disabled/internal |
 | [fomo_get_users_batch](#fomo_get_users_batch) | GET | `/v2/users` | exposed |
 | [fomo_get_relay_fee_balance](#fomo_get_relay_fee_balance) | GET | `/proxy/relay/appFees` | exposed |
+| [fomo_get_clan_pnl_equity_series](#fomo_get_clan_pnl_equity_series) | GET | `/v2/clans/{id}/aggregatedSnapshot` | exposed |
+| [fomo_get_user_referrals](#fomo_get_user_referrals) | GET | `/v2/users/{id}/referrals` | disabled/internal |
+| [fomo_get_user_referrer_details](#fomo_get_user_referrer_details) | GET | `/v2/users/{id}/referrerDetails` | disabled/internal |
+| [fomo_get_user_rewards](#fomo_get_user_rewards) | GET | `/v2/users/{id}/rewards` | disabled/internal |
+| [fomo_get_user_top_fumbles](#fomo_get_user_top_fumbles) | GET | `/v2/users/{id}/topFumbles` | exposed |
 
 ## Disabled and internal records
 
@@ -102,10 +109,16 @@ These records are retained for reference and are not registered as MCP data tool
 | Catalog id | Reason for exclusion |
 | --- | --- |
 | [fomo_request_swap_quote](#fomo_request_swap_quote) | Disabled by the analytics-only MCP scope: swap preparation is excluded even though this quote reference is marked sideEffect: none. No signing or swap execution is exposed; this is a policy exclusion, not evidence of route removal. |
+| [fomo_token_launchpad_details](#fomo_token_launchpad_details) | Disabled pending an authorized access-token probe of the current launchpad contract; frontend route evidence alone is insufficient. |
 | [fomo_add_watchlist](#fomo_add_watchlist) | Disabled because POST /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available. |
 | [fomo_remove_watchlist](#fomo_remove_watchlist) | Disabled because DELETE /watchlist changes the authenticated user's watchlist. The MCP surface permits retrieval only; GET /watchlist remains available. |
+| [fomo_transfers_with](#fomo_transfers_with) | Disabled because the current production manifest no longer references this route; retain as a historical catalog record until an authorized replacement contract is confirmed. |
 | [privy_refresh_session](#privy_refresh_session) | Internal credential-rotation endpoint used by AuthManager, not a data tool. It accepts a refresh token and returns session credentials, which must never be exposed to an MCP consumer. Catalog exclusion does not disable internal session refresh. |
+| [fomo_get_push_preferences](#fomo_get_push_preferences) | Disabled because the current production manifest no longer references this route; retain as a historical catalog record until the current push-preference contract is confirmed. |
 | [fomo_mobula_pulse](#fomo_mobula_pulse) | Disabled pending verification of the provider views/model names, chainId values, access-token requirements and response contract. Frontend route evidence alone does not prove a usable read-only contract; keep disabled until an authorized provider probe verifies it. |
+| [fomo_get_user_referrals](#fomo_get_user_referrals) | Disabled pending an authorized access-token probe of the current referral contract; frontend route evidence alone is insufficient. |
+| [fomo_get_user_referrer_details](#fomo_get_user_referrer_details) | Disabled pending an authorized access-token probe of the current referrer-details contract; frontend route evidence alone is insufficient. |
+| [fomo_get_user_rewards](#fomo_get_user_rewards) | Disabled pending an authorized access-token probe of the current rewards contract; frontend route evidence alone is insufficient. |
 
 ## Endpoint reference
 
@@ -414,6 +427,67 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 }
 ```
 
+### fomo_get_user_referrals
+
+- MCP tool: not registered (reference name: `fomo_get_user_referrals`)
+- State: **catalog reference / disabled**
+- Upstream: `GET https://prod-api.fomo.family/v2/users/{id}/referrals` (base: `fomo`; auth: `access`)
+- Description: Disabled pending an authorized access-token probe of the current referral contract; frontend route evidence alone is insufficient.
+- Response: `UserReferrals`: Paginated referral records for a user.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | path | `string` | yes | same | none; User id from a user profile or leaderboard response. |
+| `limit` | query | `number >= 1 <= 25` | no | same | `25` |
+| `sortBy` | query | `string` | no | same | `"fees"` |
+| `order` | query | `string` | no | same | `"desc"` |
+| `lastReferralId` | query | `string` | no | same | none; Cursor returned by the previous referrals page. |
+
+### fomo_get_user_referrer_details
+
+- MCP tool: not registered (reference name: `fomo_get_user_referrer_details`)
+- State: **catalog reference / disabled**
+- Upstream: `GET https://prod-api.fomo.family/v2/users/{id}/referrerDetails` (base: `fomo`; auth: `access`)
+- Description: Disabled pending an authorized access-token probe of the current referrer-details contract; frontend route evidence alone is insufficient.
+- Response: `UserReferrerDetails`: Referrer details for a user.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | path | `string` | yes | same | none; User id from a user profile or leaderboard response. |
+
+### fomo_get_user_rewards
+
+- MCP tool: not registered (reference name: `fomo_get_user_rewards`)
+- State: **catalog reference / disabled**
+- Upstream: `GET https://prod-api.fomo.family/v2/users/{id}/rewards` (base: `fomo`; auth: `access`)
+- Description: Disabled pending an authorized access-token probe of the current rewards contract; frontend route evidence alone is insufficient.
+- Response: `UserRewards`: Paginated rewards records for a user.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | path | `string` | yes | same | none; User id from a user profile or leaderboard response. |
+| `cursor` | query | `string` | no | same | none; Cursor returned by the previous rewards page. |
+
+### fomo_get_user_top_fumbles
+
+- MCP tool: `fomo_get_user_top_fumbles`
+- State: **exposed read-only**
+- Upstream: `GET https://prod-api.fomo.family/v2/users/{id}/topFumbles` (base: `fomo`; auth: `identity`)
+- Description: Read a user's top fumble records.
+- Response: `UserTopFumbles`: Top fumble records for a user.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | path | `string` | yes | same | none; User id from a user profile or leaderboard response. |
+
+MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
+
+```json
+{
+  "id": "<id>"
+}
+```
+
 ## portfolio
 
 ### fomo_get_balances
@@ -704,6 +778,28 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 }
 ```
 
+### fomo_get_clan_pnl_equity_series
+
+- MCP tool: `fomo_get_clan_pnl_equity_series`
+- State: **exposed read-only**
+- Upstream: `GET https://prod-api.fomo.family/v2/clans/{id}/aggregatedSnapshot` (base: `fomo`; auth: `identity`)
+- Description: Read a clan's aggregated PnL and equity snapshot series.
+- Response: `ClanPnlEquitySeries`: Historical clan PnL/equity series for the requested timestamp.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | path | `string` | yes | same | none; Clan id from a clan search or leaderboard response. |
+| `timestamp` | query | `string` | yes | same | none; Snapshot timestamp as an ISO-8601 date/time string. |
+
+MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
+
+```json
+{
+  "id": "<id>",
+  "timestamp": "<timestamp>"
+}
+```
+
 ## trades
 
 ### fomo_get_trades
@@ -856,6 +952,19 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 }
 ```
 
+### fomo_token_launchpad_details
+
+- MCP tool: not registered (reference name: `fomo_token_launchpad_details`)
+- State: **catalog reference / disabled**
+- Upstream: `GET https://prod-api.fomo.family/api/2/token/details` (base: `fomo`; auth: `access`)
+- Description: Disabled pending an authorized access-token probe of the current launchpad contract; frontend route evidence alone is insufficient.
+- Response: `TokenLaunchpadDetails`: Launchpad details for a token; the upstream may return no launchpad record.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| `address` | query | `string` | yes | same | none; Token address or mint. |
+| `networkId` | query | `number` | yes | same | none; Numeric FOMO network id. |
+
 ### fomo_token_warnings
 
 - MCP tool: `fomo_token_warnings`
@@ -886,6 +995,24 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 - Description: Read verified tokens.
 - Response: `VerifiedTokens`: Verified token list.
 - MCP-generated interpretation (not an upstream field): scope = `provider-wide-verified-list`.
+
+| Input | Location | Type | Required | Wire name | Default / description |
+| --- | --- | --- | --- | --- | --- |
+| No parameters | - | - | - | - | - |
+
+MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
+
+```json
+{}
+```
+
+### fomo_community_tokens
+
+- MCP tool: `fomo_community_tokens`
+- State: **exposed read-only**
+- Upstream: `POST https://prod-api.fomo.family/proxy/communityTokens` (base: `fomo`; auth: `identity`)
+- Description: Read the current community token list; no token mutation is performed.
+- Response: `CommunityTokens`: Community token list returned by the production frontend.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
@@ -1319,23 +1446,15 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 ### fomo_transfers_with
 
-- MCP tool: `fomo_transfers_with`
-- State: **exposed read-only**
+- MCP tool: not registered (reference name: `fomo_transfers_with`)
+- State: **catalog reference / disabled**
 - Upstream: `GET https://prod-api.fomo.family/v2/transfers/with/{userId}` (base: `fomo`; auth: `identity`)
-- Description: Read transfers with another user.
+- Description: Disabled because the current production manifest no longer references this route; retain as a historical catalog record until an authorized replacement contract is confirmed.
 - Response: `Transfers`: Transfer history with another user.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
 | `userId` | path | `string` | yes | same | none |
-
-MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
-
-```json
-{
-  "userId": "<userId>"
-}
-```
 
 ### fomo_supported_transfer_tokens
 
@@ -1357,27 +1476,21 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 ### fomo_get_push_preferences
 
-- MCP tool: `fomo_get_push_preferences`
-- State: **exposed read-only**
+- MCP tool: not registered (reference name: `fomo_get_push_preferences`)
+- State: **catalog reference / disabled**
 - Upstream: `GET https://prod-api.fomo.family/v2/users/pushToken/preferences` (base: `fomo`; auth: `identity`)
-- Description: Read push notification preferences.
+- Description: Disabled because the current production manifest no longer references this route; retain as a historical catalog record until the current push-preference contract is confirmed.
 - Response: `PushPreferences`: Current push notification preferences.
 
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
 | No parameters | - | - | - | - | - |
 
-MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
-
-```json
-{}
-```
-
 ### fomo_get_relay_fee_balance
 
 - MCP tool: `fomo_get_relay_fee_balance`
 - State: **exposed read-only**
-- Upstream: `GET https://prod-api.fomo.family/proxy/relay/appFees` (base: `fomo`; auth: `identity`)
+- Upstream: `GET https://prod-api.fomo.family/proxy/relay/appFees` (base: `fomo`; auth: `access`)
 - Description: Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.
 - Response: `RelayFeeBalance`: An object containing the authenticated account's relay fee balance; units are determined by the upstream response.
 
