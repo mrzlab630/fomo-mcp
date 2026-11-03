@@ -5,8 +5,9 @@
 - Documented the read-only trader research methodology, corrected cursor and date-boundary rules, derived metric limits, and live-auth proof boundary.
 - Clarified that authenticated data requests can refresh an expired identity/access session before manual Google reauthorization is required.
 - Added the research methodology reference to the README agent documentation index.
+- Synchronized the runtime MCP version and user-agent with the package release.
 - Regenerated the API reference from the current endpoint catalog.
 
-## 0.1.4 — 2026-11-03
+## 0.1.4 — 2026-11-02
 
 - Refreshed the production endpoint catalog and generated API documentation.

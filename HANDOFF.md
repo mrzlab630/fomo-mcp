@@ -9,10 +9,10 @@ mutations, scraping, stealth flags, or browser-property spoofing.
 - Path: `/home/mrz/projects/fomo/fomo_mcp`
 - Remote: `https://github.com/mrzlab630/fomo-mcp.git`
 - Branch: `main`
-- Release version: `0.1.2`
+- Release version: `0.1.5`
 - Runtime endpoint catalog: `config/endpoints.json`
 - Runtime and transport settings: `config/runtime.json`
-- Catalog: 63 upstream records, 58 exposed read-only data tools, five
+- Catalog: 70 upstream records, 59 exposed read-only data tools, eleven
   disabled/internal references. Two local auth tools are registered separately.
 
 ## Implemented behavior
@@ -69,7 +69,7 @@ For a runtime change, restart only `fomo-mcp-daemon` and check:
 - `/healthz`: HTTP 200.
 - `/readyz`: HTTP 200 only with an available, non-expired identity token;
   otherwise HTTP 503. This is a local readiness check, not an upstream probe.
-- `/config/status`: 63 catalog records and 58 exposed data tools.
+- `/config/status`: 70 catalog records and 59 exposed data tools.
 - An authorized authenticated read-only request: HTTP status, endpoint ID,
   attempt count and request ID. Do not print the business payload or secrets
   merely to prove access.
