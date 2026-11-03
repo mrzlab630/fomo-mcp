@@ -9,7 +9,7 @@ mutations, scraping, stealth flags, or browser-property spoofing.
 - Path: `/home/mrz/projects/fomo/fomo_mcp`
 - Remote: `https://github.com/mrzlab630/fomo-mcp.git`
 - Branch: `main`
-- Release version: `0.1.5`
+- Release version: `0.1.6`
 - Runtime endpoint catalog: `config/endpoints.json`
 - Runtime and transport settings: `config/runtime.json`
 - Catalog: 70 upstream records, 59 exposed read-only data tools, eleven
@@ -30,6 +30,9 @@ mutations, scraping, stealth flags, or browser-property spoofing.
 - The endpoint catalog now requires repeated `feedTypes` for clan feeds and
   uses Unix epoch milliseconds for the required `afterTime` on sorted token
   thesis queries.
+- The relay fee balance route uses the identity auth mode confirmed by a
+  successful live read-only probe; the user PnL series timestamp is documented
+  as an ISO-8601 value because the upstream route rejects Unix milliseconds.
 - The background FOMO browser transport uses ordinary headed Chrome.
   `transport.browser.avoidFocus` defaults to true, so Chrome starts
   without an initial startup window and CDP minimizes the short-lived page

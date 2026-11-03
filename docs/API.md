@@ -521,7 +521,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 | Input | Location | Type | Required | Wire name | Default / description |
 | --- | --- | --- | --- | --- | --- |
 | `userId` | query | `string` | yes | same | none |
-| `timestamp` | query | `string` | yes | same | none |
+| `timestamp` | query | `string` | yes | same | none; ISO-8601 date/time string, for example 2026-11-03T00:00:00.000Z. The upstream route does not accept Unix milliseconds. |
 | `interval` | query | `number` | no | same | none; Production UI uses 4 for 30-day aggregation. |
 
 MCP arguments (replace placeholders with authorized ids/addresses and documented feed types):
@@ -1490,7 +1490,7 @@ MCP arguments (replace placeholders with authorized ids/addresses and documented
 
 - MCP tool: `fomo_get_relay_fee_balance`
 - State: **exposed read-only**
-- Upstream: `GET https://prod-api.fomo.family/proxy/relay/appFees` (base: `fomo`; auth: `access`)
+- Upstream: `GET https://prod-api.fomo.family/proxy/relay/appFees` (base: `fomo`; auth: `identity`)
 - Description: Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.
 - Response: `RelayFeeBalance`: An object containing the authenticated account's relay fee balance; units are determined by the upstream response.
 

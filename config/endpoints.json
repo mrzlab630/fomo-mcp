@@ -268,7 +268,8 @@
             "name": "timestamp",
             "source": "query",
             "type": "string",
-            "required": true
+            "required": true,
+            "description": "ISO-8601 date/time string, for example 2026-11-03T00:00:00.000Z. The upstream route does not accept Unix milliseconds."
           },
           {
             "name": "interval",
@@ -2206,7 +2207,7 @@
         "description": "An object containing the authenticated account's relay fee balance; units are determined by the upstream response."
       },
       "description": "Read the authenticated account's relay fee balance. Does not claim fees, request a signature or execute permits.",
-      "auth": "access",
+      "auth": "identity",
       "sideEffect": "none",
       "expose": true
     },

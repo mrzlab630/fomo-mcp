@@ -65,6 +65,15 @@ test("catalog contracts build correct cursor, auth and wire values", () => {
   assert.equal(endpoint("fomo_get_users_batch").method, "GET");
   assert.deepEqual(buildRequest(endpoint("fomo_get_relay_fee_balance"), {}), { path: "/proxy/relay/appFees", query: {} });
   assert.equal(endpoint("fomo_get_relay_fee_balance").method, "GET");
+  assert.equal(endpoint("fomo_get_relay_fee_balance").auth, "identity");
+  const pnlSeries = endpoint("fomo_get_pnl_equity_series");
+  const timestamp = pnlSeries.request.params.find((param) => param.name === "timestamp");
+  assert.match(timestamp.description, /ISO-8601/);
+  assert.deepEqual(buildRequest(pnlSeries, { userId, timestamp: "2026-11-03T00:00:00.000Z", interval: 86400 }).query, {
+    userId,
+    timestamp: "2026-11-03T00:00:00.000Z",
+    interval: 86400,
+  });
   const schema = z.object(inputSchema(endpoint("fomo_trading_activity")));
   assert.equal(schema.safeParse({ limit: 100 }).success, true);
   assert.equal(schema.safeParse({ limit: 101 }).success, false);
