@@ -10,7 +10,7 @@ Privy access/refresh tokens are used for session operations and do not replace t
 | --- | --- |
 | `available: true` | An identity token is stored |
 | `reauthRequired: false` | The identity token has a readable JWT `exp` in the future |
-| `reauthRequired: true` | The token is missing, expired, or has no readable `exp`; interactive login is required |
+| `reauthRequired: true` | The stored identity token is missing, expired, or has no readable `exp`; a data request may still recover it through the stored refresh pair before interactive login is required |
 
 `/auth/status` and `fomo_auth_status` may also expose `accessTokenExpiresAt`
 and `refreshTokenExpiresAt` when those JWT expiry values are available. Token
@@ -34,6 +34,11 @@ it does not verify the JWT signature or prove upstream access.
    explicit restart; automatic polling does not repeatedly create flows.
 4. When `ready: true`, retry the original data request once. A successful
    read-only response, not auth metadata alone, proves FOMO access.
+
+Do not use a stale `auth/status` response as the only live-access test. The
+status endpoint reads metadata and does not perform a refresh. A normal
+authenticated data request calls `ensureSession()`, rereads the encrypted
+state, and can refresh the required token before sending the request.
 
 On the local form, **Continue in your browser** starts the manual Google OAuth
 flow. This is the normal path because Google may reject OAuth from a browser
@@ -89,6 +94,10 @@ being exposed to agents; it does not disable AuthManager's internal refresh.
   performs one shared Privy refresh when the token required by that endpoint is
   expired and a refresh pair is available. A valid identity token does not
   require rotation merely because the access token is expired.
+- The refresh decision is made per endpoint auth mode: identity endpoints need
+  a current identity token, while access endpoints need a current access token.
+  The refresh response must contain a complete rotated access/refresh pair; an
+  identity token is persisted when the response supplies one.
 - A read-only authenticated request may receive one HTTP 401 refresh-and-retry
   cycle. Mutating requests are never retried by the transport.
 - A session refresh can return the rotated access/refresh pair and a fresh

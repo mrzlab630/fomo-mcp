@@ -30,6 +30,7 @@ The endpoint map is a reverse-engineered reference, not an official FOMO API con
 - [AI agent workflow](docs/AGENT_WORKFLOW.md): shortest normal path, reauthorization sequence, tool selection, and failure handling.
 - [API catalog](docs/API.md): every MCP tool, upstream route, parameter shape, disabled record, and local daemon route.
 - [Authentication](docs/AUTH.md): token model, Google/Privy flows, reauthorization, storage, and proof commands.
+- [Research methodology](docs/RESEARCH.md): read-only trader analysis, pagination rules, derived metrics, and evidence limits.
 
 ## Configuration
 
